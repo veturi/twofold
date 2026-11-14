@@ -1,0 +1,52 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+Twofold (formerly VisDiff; the directory and some history still use the old name) is a native macOS visual diff tool: two text files side by side, or two folders with a sidebar of changed files. Swift 6.2 package, AppKit, macOS 26+, no third-party dependencies. Everything builds from the command line. There is no `.xcodeproj`, so don't create one. `PLAN.md` holds the design intent and scope, including what is deliberately out of scope for v1 (editing/merging, syntax highlighting, image diff, and so on).
+
+## Commands
+
+```sh
+make app                       # swift build + scripts/bundle.sh → build/Twofold.app (ad-hoc signed)
+make start ARGS="a.txt b.txt"  # build and open a comparison (files or folders)
+make test                      # swift test
+make bench                     # release-mode BenchmarkTests (100k lines, 1% changed)
+make release                   # universal arm64 + x86_64 bundle
+make icon                      # regenerate Resources/AppIcon.icns from scripts/make-icon.swift
+```
+
+Run a single test: `swift test --filter DiffTests/testInlineHighlightsWords` (classes are `TextDocumentTests`, `DiffTests`, `FolderTests`, `BenchmarkTests`, all in `Tests/DiffCoreTests/DiffCoreTests.swift`). `testMatchesSystemDiff` cross-checks against `/usr/bin/diff`.
+
+`swift build` alone produces a bare executable. Use `make app` / `scripts/bundle.sh` to get a runnable `.app` with its Info.plist and icon.
+
+### Checking UI without a screen
+
+The app renders a window offscreen to a PNG and exits. Use this to verify any visual change, in both appearances and both layouts:
+
+```sh
+build/Twofold.app/Contents/MacOS/Twofold --snapshot out.png [--appearance light|dark] [--layout fluid|blocks] \
+  [--size 1360x860] [--change N] [--scale 2] [--wrap|--no-wrap] [--font-size 12] [--file rel/path] [--bench] A B
+```
+
+`--change` is 1-based and selects the current change. `--file` picks the initially selected file in a folder comparison. `--bench` prints frame render times while scrolling. Options are parsed in `LaunchOptions` (`Sources/Twofold/AppDelegate.swift`), and snapshot overrides to preferences stay in memory only (`Preferences.overrides`).
+
+## Architecture
+
+Two targets. `DiffCore` has no AppKit dependency and is the only tested module. `Twofold` is the AppKit app and depends on `DiffCore`, never the reverse.
+
+**DiffCore pipeline:** `TextDocument.decode` (BOM → UTF-8 → Latin-1 fallback; NUL byte means binary; LF/CRLF/CR all split lines, and a line-ending difference alone is not a change) → `TextDiff.init` interns lines to `Int32` → `Myers.matches` (own O(ND) implementation with a time limit fallback) → `makeBlocks` turns match flags into `equal/added/removed/modified` `DiffBlock`s → `splitModified` splits unequal-length modified blocks into similar line pairs plus plain adds/removes → `InlineDiff` computes word-then-character highlight ranges (UTF-16 offsets) for modified lines. Everything the UI draws derives from `TextDiff.blocks`. `FolderCompare` walks both trees, pairs by relative path, and resolves statuses concurrently, streaming results.
+
+**Text diff view (`Sources/Twofold/TextDiff/`):** a single custom `DiffCanvasView` draws both panes, the centre ribbon with Bézier connectors, and the overview strip, and owns scrolling. It is not built from separate NSScrollViews or NSTextViews, which differs from the earlier sketch in PLAN.md §4. `DiffLayout` turns blocks into `LayoutSection`s (equal, fold, change) in a shared logical scroll space `t`, with a per-side `y`/`span`. Fluid mode maps `t` to each side piecewise-linearly so the centred change stays aligned. Blocks mode uses equal spans. Row counts for wrapping come from column arithmetic in `TextMetrics`/`Columns` (monospaced-font assumption), so lines are never typeset just to measure them. Typeset rows are cached as `CTLine`s. `DiffViewController` runs the diff off the main thread and hosts the canvas, path bars and bottom bar (`Bars.swift`).
+
+**Shell:** `AppDelegate` (launch args, menus, open/drop handling), `ComparisonWindowController` (one window per comparison, toolbar, files vs folders kind), `FolderDiff/FolderSidebarController` (flat list grouped by directory breadcrumbs, filter, status toggles), `Welcome/` (start window and recent comparisons), `FileWatcher` (reload on disk change, keeping scroll position), `Preferences` (UserDefaults-backed, posts `Preferences.didChange`).
+
+**Colours:** all colours are defined in `Theme.swift` as dynamic light/dark pairs. Don't put colour literals elsewhere. For drawing, `Palette` (bottom of `DiffCanvasView.swift`) resolves them to `CGColor` once per appearance. Change hues: blue for modified, green for added, red for removed. Purple is the app accent and is never used as a change colour.
+
+## Other files
+
+- `scripts/twofold` is the CLI launcher (`--wait` for `git difftool`). `make install` copies it to `~/.local/bin` with the app path baked in.
+- `docs/` is the GitHub Pages site: a single `index.html` with Tailwind from a CDN and no build step. Its screenshots are real `--snapshot ... --scale 2` renders.
+- Releases: pushing a `v*` tag runs `.github/workflows/release.yml` (tests, universal build stamped via `VERSION`/`BUILD` env for `bundle.sh`, optional Developer ID signing and notarization, zip + SHA-256 to a GitHub release).
+- License is GPLv3, but the name and icon are reserved (`TRADEMARKS.md`). Contributions carry an extra licence grant for the App Store build (`CONTRIBUTING.md`).
