@@ -47,6 +47,6 @@ Two targets. `DiffCore` has no AppKit dependency and is the only tested module. 
 ## Other files
 
 - `scripts/twofold` is the CLI launcher (`--wait` for `git difftool`). `make install` copies it to `~/.local/bin` with the app path baked in.
-- `docs/` is the GitHub Pages site: a single `index.html` with Tailwind from a CDN and no build step. Its screenshots are real `--snapshot ... --scale 2` renders.
+- `docs/` is the GitHub Pages site at https://twofoldapp.org (`docs/CNAME`): plain HTML with Tailwind from a CDN and no build step. `index.html` is the main page; `<slug>/index.html` are comparison pages (Kaleidoscope, Beyond Compare, FileMerge, Meld) that duplicate the nav, footer and Tailwind theme, so change those everywhere. Each page carries JSON-LD in `<head>`, and visible FAQ text must match its `FAQPage` data. New pages go into `sitemap.xml`; facts about the app (features, requirements, price) also live in `llms.txt` for AI assistants, so keep it current. Screenshots are real `--snapshot ... --scale 2` renders; `make social-card` rebuilds the 1200×630 link preview from them. Cloudflare Web Analytics loads from `assets/analytics.js` once its token is set there.
 - Releases: pushing a `v*` tag runs `.github/workflows/release.yml` (tests, universal build stamped via `VERSION`/`BUILD` env for `bundle.sh`, optional Developer ID signing and notarization, zip + SHA-256 to a GitHub release).
 - License is GPLv3, but the name and icon are reserved (`TRADEMARKS.md`). Contributions carry an extra licence grant for the App Store build (`CONTRIBUTING.md`).

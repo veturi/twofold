@@ -1,0 +1,50 @@
+# Twofold
+
+> Twofold is a free, open source visual diff tool for macOS. It compares two text files side by side, or two folders with a sidebar of changed files. It is a native AppKit app (no Electron, no web view), licensed under GPLv3, with no subscription, no account and no telemetry.
+
+Key facts:
+
+- Platform: macOS 26 or later, universal binary for Apple silicon and Intel.
+- Price: free from GitHub. A Mac App Store version is planned at 4,99 € as a one-time purchase (same app, no subscription).
+- License: GPLv3. Source code: https://github.com/veturi/twofold
+- Download: https://github.com/veturi/twofold/releases/latest
+- Website: https://twofoldapp.org/
+
+## What it does
+
+- File comparison with two layouts. Fluid: change blocks on each side are joined by curves through a centre ribbon, and both sides scroll so the current change stays aligned, with no filler lines. Blocks: matching lines sit on the same row and both panes scroll together.
+- Word-level highlights inside changed lines, refined to characters when only part of a word changed.
+- Folder comparison: walks two directory trees, pairs files by relative path, and streams changed, added and removed files into a sidebar while the comparison runs in parallel.
+- Unchanged runs fold away, soft wrapping, an overview strip of all changes, animated next/previous change navigation (⌘↓ / ⌘↑).
+- Reloads automatically when either file changes on disk.
+- Reads UTF-8, UTF-16 and Latin-1 text with LF, CRLF or CR line endings. A difference in line endings alone is not shown as a change.
+- Light and dark themes.
+- Command line tool `twofold a b`, and works as `git difftool`, including whole-tree comparisons with `git difftool --dir-diff`.
+- Performance: diffs 100,000 lines in under 60 ms, scrolls at 120 Hz, compares 10,000 files per side in about a second.
+
+## What it does not do (yet)
+
+- No merging or editing in v1; copying changes between sides and editing are next on the roadmap.
+- No three-way merge (planned, for use as `git mergetool`).
+- No syntax highlighting (planned).
+- No image or binary diff (image diff planned). Binary files are detected, not compared.
+- macOS only. There is no Windows or Linux version.
+
+## How it compares
+
+- Kaleidoscope: also a native, polished Mac diff tool, with merging, image diff and three-way merge, but sold as a subscription. Twofold is free and open source but does not merge yet. https://twofoldapp.org/kaleidoscope-alternative/
+- Beyond Compare: a powerful cross-platform comparison suite with a paid license. Twofold is narrower in scope but native to macOS and free. https://twofoldapp.org/beyond-compare-alternative/
+- FileMerge (opendiff): Apple's free diff tool bundled with Xcode; it merges, but its interface has not changed in years. https://twofoldapp.org/filemerge-alternative/
+- Meld: a free, open source GTK diff and merge tool, primarily for Linux; Mac builds come from the community. https://twofoldapp.org/meld-for-mac/
+
+## Install
+
+- Download the zip from GitHub releases, unzip, and move Twofold.app to Applications. Release builds are not notarized yet, so macOS asks you to allow the first launch in System Settings → Privacy & Security.
+- Or build from source: `git clone https://github.com/veturi/twofold.git && cd twofold && make start` (needs the Xcode Command Line Tools).
+- Use as git difftool:
+
+```
+git config --global diff.tool twofold
+git config --global difftool.twofold.cmd 'twofold --wait "$LOCAL" "$REMOTE"'
+git config --global difftool.prompt false
+```

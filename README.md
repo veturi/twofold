@@ -1,6 +1,8 @@
 # Twofold
 
-A native, fast, good-looking visual diff tool for macOS. Free and open source, no subscription.
+A native, fast, good-looking visual diff tool for macOS. Free and open source, no subscription: a Kaleidoscope alternative you don't have to rent.
+
+**[twofoldapp.org](https://twofoldapp.org)** · [Download](https://github.com/veturi/twofold/releases/latest)
 
 It compares two text files side by side, or two folders with a sidebar of changed files.
 
@@ -100,9 +102,9 @@ The GitHub version is free forever. A Mac App Store version will cost a one-time
 
 ## Website
 
-The marketing site lives in `docs/`: one HTML file, Tailwind from its CDN, no build step. To publish it, open the repository's Settings → Pages, choose "Deploy from a branch", and pick the `main` branch and the `/docs` folder. For a custom domain, set it in the same screen (GitHub adds a `docs/CNAME` file).
+The website, https://twofoldapp.org, lives in `docs/`: plain HTML, Tailwind from its CDN, no build step. GitHub Pages serves it from the `main` branch's `/docs` folder; the domain is in `docs/CNAME`.
 
-Set the repository URL once, in the `REPO` constant at the bottom of `docs/index.html`. Screenshots are real app renders made with `--snapshot ... --scale 2`.
+Besides the main page there are comparison pages (`docs/kaleidoscope-alternative/` and friends), `robots.txt`, `sitemap.xml`, and `llms.txt`, a plain-text summary for AI assistants. Screenshots are real app renders made with `--snapshot ... --scale 2`; `make social-card` regenerates the link preview image. Visitor statistics use Cloudflare Web Analytics (cookieless) once a token is set in `docs/assets/analytics.js`.
 
 ## Releasing
 

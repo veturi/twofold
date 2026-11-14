@@ -3,14 +3,97 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Twofold: the prettiest diff on your Mac. Free forever.</title>
-  <meta name="description" content="Twofold is a native macOS app for comparing files and folders. Beautiful, fast, open source and free. No subscription, no account, no dependencies.">
+  <title>Twofold: free, open source diff tool for Mac (files &amp; folders)</title>
+  <meta name="description" content="Twofold is a native macOS app for comparing text files and folders side by side. Beautiful, fast, open source and free: a Kaleidoscope alternative with no subscription, no account and no telemetry.">
+  <link rel="canonical" href="https://twofoldapp.org/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Twofold">
+  <meta property="og:url" content="https://twofoldapp.org/">
   <meta property="og:title" content="Twofold: the prettiest diff on your Mac">
   <meta property="og:description" content="Native, open source, free forever. A visual diff for macOS without the subscription.">
-  <meta property="og:image" content="assets/hero-light.png">
+  <meta property="og:image" content="https://twofoldapp.org/assets/social-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Twofold, the prettiest diff on your Mac. Free forever.">
+  <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#8b46f0">
-  <link rel="icon" type="image/png" href="assets/favicon.png">
-  <link rel="apple-touch-icon" href="assets/icon.png">
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <link rel="apple-touch-icon" href="/assets/icon.png">
+  <script src="/assets/analytics.js" defer></script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://twofoldapp.org/#app",
+        "name": "Twofold",
+        "description": "A native, open source visual diff tool for macOS that compares two text files side by side, or two folders with a sidebar of changed files.",
+        "url": "https://twofoldapp.org/",
+        "applicationCategory": "DeveloperApplication",
+        "applicationSubCategory": "File comparison",
+        "operatingSystem": "macOS 26 or later",
+        "processorRequirements": "Apple silicon or Intel",
+        "isAccessibleForFree": true,
+        "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+        "downloadUrl": "https://github.com/veturi/twofold/releases/latest",
+        "codeRepository": "https://github.com/veturi/twofold",
+        "image": "https://twofoldapp.org/assets/icon.png",
+        "screenshot": [
+          "https://twofoldapp.org/assets/hero-light.png",
+          "https://twofoldapp.org/assets/hero-dark.png",
+          "https://twofoldapp.org/assets/folders.png"
+        ],
+        "featureList": [
+          "Side-by-side file comparison with Fluid and Blocks layouts",
+          "Word- and character-level highlights inside changed lines",
+          "Folder comparison with a sidebar of changed, added and removed files",
+          "Works as git difftool, including whole-tree comparisons",
+          "Automatic reload when files change on disk",
+          "Light and dark themes"
+        ],
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+        "author": { "@id": "https://twofoldapp.org/#project" }
+      },
+      {
+        "@type": "Organization",
+        "@id": "https://twofoldapp.org/#project",
+        "name": "Twofold project",
+        "url": "https://twofoldapp.org/",
+        "logo": "https://twofoldapp.org/assets/icon.png",
+        "sameAs": ["https://github.com/veturi/twofold"]
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://twofoldapp.org/#website",
+        "name": "Twofold",
+        "url": "https://twofoldapp.org/",
+        "publisher": { "@id": "https://twofoldapp.org/#project" }
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          { "@type": "Question", "name": "Is Twofold really free?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Twofold is free and open source under the GPLv3, with no subscription, account or license key. A Mac App Store version is planned at 4,99 € as a one-time purchase for people who want automatic updates or to support the project; it is the same app." } },
+          { "@type": "Question", "name": "Which Macs does Twofold run on?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Twofold needs macOS 26 or later and runs natively on both Apple silicon and Intel Macs." } },
+          { "@type": "Question", "name": "Can Twofold compare folders?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Open two folders and Twofold lists every changed, added and removed file in a sidebar grouped by directory, streaming results while the comparison runs in parallel. Select a file to see its diff." } },
+          { "@type": "Question", "name": "How do I use Twofold as my git difftool?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Install the twofold command with make install, then run: git config --global diff.tool twofold; git config --global difftool.twofold.cmd 'twofold --wait \"$LOCAL\" \"$REMOTE\"'; git config --global difftool.prompt false. Use git difftool --dir-diff to compare whole trees in one window." } },
+          { "@type": "Question", "name": "Can Twofold merge or edit files?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Not yet. Version 1 is a viewer for files and folders. Copying changes between sides and editing in place are next on the roadmap, followed by three-way merge for git mergetool." } },
+          { "@type": "Question", "name": "Is Twofold a good Kaleidoscope alternative?",
+            "acceptedAnswer": { "@type": "Answer", "text": "If you mainly read diffs of text files and folders, yes: Twofold is native, polished and free, while Kaleidoscope is sold as a subscription. Kaleidoscope still does more, including merging, image diff and three-way merge." } },
+          { "@type": "Question", "name": "Does Twofold collect any data?",
+            "acceptedAnswer": { "@type": "Answer", "text": "No. The app has no telemetry, no account and no license server. It never sends your files anywhere." } },
+          { "@type": "Question", "name": "Why does macOS warn me when I first open Twofold?",
+            "acceptedAnswer": { "@type": "Answer", "text": "GitHub release builds are not notarized by Apple yet. Open the app once, then go to System Settings, Privacy & Security and click Open Anyway. You only need to do this once." } }
+        ]
+      }
+    ]
+  }
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <style type="text/tailwindcss">
     @theme {
@@ -42,7 +125,7 @@
         <a href="#compare" class="hidden text-zinc-600 hover:text-zinc-900 sm:block dark:text-zinc-400 dark:hover:text-white">Compare</a>
         <a href="#pricing" class="hidden text-zinc-600 hover:text-zinc-900 sm:block dark:text-zinc-400 dark:hover:text-white">Pricing</a>
         <a href="#roadmap" class="hidden text-zinc-600 hover:text-zinc-900 sm:block dark:text-zinc-400 dark:hover:text-white">Roadmap</a>
-        <a data-repo="" href="#" class="rounded-full bg-zinc-900 px-4 py-1.5 font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">GitHub</a>
+        <a href="https://github.com/veturi/twofold" class="rounded-full bg-zinc-900 px-4 py-1.5 font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">GitHub</a>
       </div>
     </nav>
   </header>
@@ -66,7 +149,7 @@
           monthly bill for looking at two text files.
         </p>
         <div class="mt-10 flex flex-wrap items-center justify-center gap-4">
-          <a data-repo="/releases/latest" href="#" class="rounded-full bg-brand px-7 py-3.5 text-base font-semibold text-white shadow-lg shadow-brand/30 transition hover:bg-brand-light">
+          <a href="https://github.com/veturi/twofold/releases/latest" class="rounded-full bg-brand px-7 py-3.5 text-base font-semibold text-white shadow-lg shadow-brand/30 transition hover:bg-brand-light">
             Download for macOS
           </a>
           <a href="#install" class="rounded-full border border-zinc-300 bg-white/60 px-7 py-3.5 text-base font-semibold hover:bg-white dark:border-white/15 dark:bg-white/5 dark:hover:bg-white/10">
@@ -294,6 +377,13 @@
           </table>
         </div>
         <p class="mt-4 text-center text-xs text-zinc-500">Kaleidoscope, Beyond Compare, FileMerge, Meld and P4Merge are trademarks of their respective owners. Pricing and features as we understand them; check each vendor for current details. "Actually pretty" is our opinion, and we stand by it.</p>
+        <p class="mt-6 text-center text-sm text-zinc-600 dark:text-zinc-400">
+          Side by side in detail:
+          <a href="/kaleidoscope-alternative/" class="font-medium text-brand hover:underline">Kaleidoscope</a> ·
+          <a href="/beyond-compare-alternative/" class="font-medium text-brand hover:underline">Beyond Compare</a> ·
+          <a href="/filemerge-alternative/" class="font-medium text-brand hover:underline">FileMerge</a> ·
+          <a href="/meld-for-mac/" class="font-medium text-brand hover:underline">Meld</a>
+        </p>
       </div>
     </section>
 
@@ -322,7 +412,7 @@
             <li class="flex gap-3"><span class="text-brand">✓</span> Command line tool and <code class="font-mono text-sm">git difftool</code></li>
             <li class="flex gap-3"><span class="text-brand">✓</span> All source code, GPLv3</li>
           </ul>
-          <a data-repo="/releases/latest" href="#" class="mt-8 rounded-full border border-zinc-300 px-6 py-3 text-center font-semibold hover:bg-zinc-50 dark:border-white/15 dark:hover:bg-white/10">Download from GitHub</a>
+          <a href="https://github.com/veturi/twofold/releases/latest" class="mt-8 rounded-full border border-zinc-300 px-6 py-3 text-center font-semibold hover:bg-zinc-50 dark:border-white/15 dark:hover:bg-white/10">Download from GitHub</a>
         </div>
         <div class="relative flex flex-col rounded-3xl border-2 border-brand bg-white p-8 shadow-xl shadow-brand/10 dark:bg-white/5">
           <span class="absolute -top-3 left-8 rounded-full bg-brand px-3 py-0.5 text-xs font-semibold text-white">Coming later</span>
@@ -418,9 +508,50 @@ git config --global difftool.prompt false</code></pre>
       </div>
 
       <div class="mt-12 text-center">
-        <a data-repo="/releases/latest" href="#" class="inline-block rounded-full bg-brand px-7 py-3.5 text-base font-semibold text-white shadow-lg shadow-brand/30 transition hover:bg-brand-light">
+        <a href="https://github.com/veturi/twofold/releases/latest" class="inline-block rounded-full bg-brand px-7 py-3.5 text-base font-semibold text-white shadow-lg shadow-brand/30 transition hover:bg-brand-light">
           Download for macOS
         </a>
+      </div>
+    </section>
+
+    <!-- FAQ (keep in sync with the FAQPage data in <head>) -->
+    <section id="faq" class="border-t border-black/5 bg-white dark:border-white/5 dark:bg-[#1a191f]">
+      <div class="mx-auto max-w-3xl px-6 py-24">
+        <h2 class="text-center text-4xl font-bold tracking-tight sm:text-5xl">Questions</h2>
+        <div class="mt-12 divide-y divide-black/5 dark:divide-white/10">
+          <details class="group py-5" open>
+            <summary class="cursor-pointer list-none text-lg font-semibold">Is Twofold really free?</summary>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">Yes. Twofold is free and open source under the GPLv3, with no subscription, account or license key. A Mac App Store version is planned at 4,99 € as a one-time purchase, for people who want automatic updates or to support the project. It's the same app.</p>
+          </details>
+          <details class="group py-5">
+            <summary class="cursor-pointer list-none text-lg font-semibold">Which Macs does Twofold run on?</summary>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">macOS 26 or later, natively on both Apple silicon and Intel.</p>
+          </details>
+          <details class="group py-5">
+            <summary class="cursor-pointer list-none text-lg font-semibold">Can Twofold compare folders?</summary>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">Yes. Open two folders and Twofold lists every changed, added and removed file in a sidebar grouped by directory, streaming results while the comparison runs in parallel. Select a file to see its diff.</p>
+          </details>
+          <details class="group py-5">
+            <summary class="cursor-pointer list-none text-lg font-semibold">How do I use Twofold as my git difftool?</summary>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">Install the <code class="font-mono text-sm">twofold</code> command with <code class="font-mono text-sm">make install</code>, then run the three <code class="font-mono text-sm">git config</code> lines in <a href="#install" class="text-brand hover:underline">Get it</a>. Use <code class="font-mono text-sm">git difftool --dir-diff</code> to compare whole trees in one window.</p>
+          </details>
+          <details class="group py-5">
+            <summary class="cursor-pointer list-none text-lg font-semibold">Can Twofold merge or edit files?</summary>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">Not yet. Version 1 is a viewer for files and folders. Copying changes between sides and editing in place are next on the roadmap, followed by three-way merge for <code class="font-mono text-sm">git mergetool</code>.</p>
+          </details>
+          <details class="group py-5">
+            <summary class="cursor-pointer list-none text-lg font-semibold">Is Twofold a good Kaleidoscope alternative?</summary>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">If you mainly read diffs of text files and folders, yes: Twofold is native, polished and free, while Kaleidoscope is sold as a subscription. Kaleidoscope still does more, including merging, image diff and three-way merge. <a href="/kaleidoscope-alternative/" class="text-brand hover:underline">The full comparison</a>.</p>
+          </details>
+          <details class="group py-5">
+            <summary class="cursor-pointer list-none text-lg font-semibold">Does Twofold collect any data?</summary>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">No. The app has no telemetry, no account and no license server. It never sends your files anywhere.</p>
+          </details>
+          <details class="group py-5">
+            <summary class="cursor-pointer list-none text-lg font-semibold">Why does macOS warn me when I first open Twofold?</summary>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">GitHub release builds aren't notarized by Apple yet. Open the app once, then go to System Settings → Privacy &amp; Security and click <strong>Open Anyway</strong>. You only need to do this once.</p>
+          </details>
+        </div>
       </div>
     </section>
   </main>
@@ -432,21 +563,21 @@ git config --global difftool.prompt false</code></pre>
         Twofold · Free software under the GPLv3 · "Twofold" and its icon are trademarks of the project maintainer
       </div>
       <div class="flex gap-6">
-        <a data-repo="" href="#" class="hover:text-zinc-900 dark:hover:text-white">Source</a>
-        <a data-repo="/issues" href="#" class="hover:text-zinc-900 dark:hover:text-white">Issues</a>
-        <a data-repo="/releases" href="#" class="hover:text-zinc-900 dark:hover:text-white">Releases</a>
+        <a href="https://github.com/veturi/twofold" class="hover:text-zinc-900 dark:hover:text-white">Source</a>
+        <a href="https://github.com/veturi/twofold/issues" class="hover:text-zinc-900 dark:hover:text-white">Issues</a>
+        <a href="https://github.com/veturi/twofold/releases" class="hover:text-zinc-900 dark:hover:text-white">Releases</a>
       </div>
+    </div>
+    <div class="mx-auto max-w-6xl px-6 pb-10 text-center text-xs text-zinc-500 sm:text-left">
+      Compare:
+      <a href="/kaleidoscope-alternative/" class="hover:text-zinc-900 dark:hover:text-white">Kaleidoscope alternative</a> ·
+      <a href="/beyond-compare-alternative/" class="hover:text-zinc-900 dark:hover:text-white">Beyond Compare alternative</a> ·
+      <a href="/filemerge-alternative/" class="hover:text-zinc-900 dark:hover:text-white">FileMerge alternative</a> ·
+      <a href="/meld-for-mac/" class="hover:text-zinc-900 dark:hover:text-white">Meld for Mac</a>
     </div>
   </footer>
 
   <script>
-    // The only thing to change when the repository moves.
-    const REPO = "https://github.com/veturi/twofold";
-
-    document.querySelectorAll("[data-repo]").forEach(a => { a.href = REPO + a.dataset.repo; });
-    document.getElementById("clone-cmd").textContent =
-      `git clone ${REPO}.git\ncd ${REPO.split("/").pop()}\nmake start`;
-
     // Light / dark screenshot switch, starting from the visitor's own setting.
     const shot = document.getElementById("hero-shot");
     const buttons = document.querySelectorAll("[data-theme-btn]");

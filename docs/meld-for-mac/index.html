@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<!-- Comparison page. Keep the visible FAQ in sync with the FAQPage data in <head>. -->
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meld for Mac? Try Twofold, a native open source diff tool</title>
+  <meta name="description" content="Looking for Meld on macOS? Twofold is a native, free and open source diff tool for Mac that compares files and folders, with no GTK or community builds needed.">
+  <link rel="canonical" href="https://twofoldapp.org/meld-for-mac/">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Twofold">
+  <meta property="og:url" content="https://twofoldapp.org/meld-for-mac/">
+  <meta property="og:title" content="Looking for Meld on a Mac? Here&#x27;s a native one.">
+  <meta property="og:description" content="Looking for Meld on macOS? Twofold is a native, free and open source diff tool for Mac that compares files and folders, with no GTK or community builds needed.">
+  <meta property="og:image" content="https://twofoldapp.org/assets/social-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="theme-color" content="#8b46f0">
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <link rel="apple-touch-icon" href="/assets/icon.png">
+  <script src="/assets/analytics.js" defer></script>
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebPage",
+      "@id": "https://twofoldapp.org/meld-for-mac/",
+      "url": "https://twofoldapp.org/meld-for-mac/",
+      "name": "Meld for Mac? Try Twofold, a native open source diff tool",
+      "description": "Looking for Meld on macOS? Twofold is a native, free and open source diff tool for Mac that compares files and folders, with no GTK or community builds needed.",
+      "isPartOf": {
+        "@id": "https://twofoldapp.org/#website"
+      },
+      "about": {
+        "@id": "https://twofoldapp.org/#app"
+      },
+      "primaryImageOfPage": "https://twofoldapp.org/assets/social-card.png"
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Twofold",
+          "item": "https://twofoldapp.org/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Twofold vs Meld",
+          "item": "https://twofoldapp.org/meld-for-mac/"
+        }
+      ]
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://twofoldapp.org/#app",
+      "name": "Twofold",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "macOS 26 or later",
+      "url": "https://twofoldapp.org/",
+      "downloadUrl": "https://github.com/veturi/twofold/releases/latest",
+      "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "EUR"
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Is there an official Meld for Mac?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Meld's official releases are for Linux and Windows. Mac builds come from the community. Twofold is a native, open source alternative made for macOS."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is Twofold open source like Meld?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Twofold is licensed under the GPLv3, and the full source is on GitHub."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can Twofold do three-way merges like Meld?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Not yet. Three-way merge for git mergetool is on the roadmap."
+          }
+        }
+      ]
+    }
+  ]
+}
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style type="text/tailwindcss">
+    @theme {
+      --color-brand: #8b46f0;
+      --color-brand-light: #a46bff;
+      --color-add: #5dba60;
+      --color-del: #cf6a63;
+      --color-mod: #6493e5;
+      --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+    }
+    .shot { box-shadow: 0 40px 80px -20px rgb(42 14 92 / 0.35), 0 0 0 1px rgb(0 0 0 / 0.08); }
+    @media (prefers-color-scheme: dark) {
+      .shot { box-shadow: 0 40px 80px -20px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.08); }
+    }
+  </style>
+</head>
+<body class="bg-[#faf8fe] text-zinc-900 antialiased dark:bg-[#141318] dark:text-zinc-100">
+
+  <header class="sticky top-0 z-50 border-b border-black/5 bg-[#faf8fe]/80 backdrop-blur-xl dark:border-white/5 dark:bg-[#141318]/80">
+    <nav class="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+      <a href="/" class="flex items-center gap-2.5 font-semibold tracking-tight">
+        <img src="/assets/icon.png" alt="" class="h-8 w-8">
+        Twofold
+      </a>
+      <div class="flex items-center gap-6 text-sm">
+        <a href="/#features" class="hidden text-zinc-600 hover:text-zinc-900 sm:block dark:text-zinc-400 dark:hover:text-white">Features</a>
+        <a href="/#compare" class="hidden text-zinc-600 hover:text-zinc-900 sm:block dark:text-zinc-400 dark:hover:text-white">Compare</a>
+        <a href="/#faq" class="hidden text-zinc-600 hover:text-zinc-900 sm:block dark:text-zinc-400 dark:hover:text-white">FAQ</a>
+        <a href="https://github.com/veturi/twofold" class="rounded-full bg-zinc-900 px-4 py-1.5 font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">GitHub</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="relative overflow-hidden">
+      <div class="pointer-events-none absolute inset-x-0 -top-40 mx-auto h-[500px] max-w-5xl rounded-full bg-brand/20 blur-[120px] dark:bg-brand/25"></div>
+      <div class="relative mx-auto max-w-4xl px-6 pb-12 pt-20 text-center sm:pt-24">
+        <nav aria-label="Breadcrumb" class="mb-6 text-sm text-zinc-500"><a href="/" class="hover:text-zinc-900 dark:hover:text-white">Twofold</a> › Twofold vs Meld</nav>
+        <h1 class="text-4xl font-bold tracking-tight sm:text-6xl">Looking for Meld on a Mac?<br>Here's a native one.</h1>
+        <p class="mx-auto mt-6 max-w-2xl text-lg text-zinc-600 sm:text-xl dark:text-zinc-400">Meld is a great open source diff and merge tool, built for Linux with GTK. There's no official macOS build. Twofold shares Meld's spirit, free and GPL, but it's made for the Mac.</p>
+        <div class="mt-10 flex flex-wrap items-center justify-center gap-4">
+          <a href="https://github.com/veturi/twofold/releases/latest" class="rounded-full bg-brand px-7 py-3.5 text-base font-semibold text-white shadow-lg shadow-brand/30 transition hover:bg-brand-light">Download Twofold free</a>
+          <a href="/" class="rounded-full border border-zinc-300 bg-white/60 px-7 py-3.5 text-base font-semibold hover:bg-white dark:border-white/15 dark:bg-white/5 dark:hover:bg-white/10">See all features</a>
+        </div>
+        <p class="mt-4 text-sm text-zinc-500">macOS 26 or later · Apple silicon &amp; Intel · Open source, GPLv3</p>
+      </div>
+      <div class="relative mx-auto max-w-5xl px-4 pb-20 sm:px-6">
+        <img src="/assets/hero-light.png" width="2560" height="1600" alt="Twofold comparing two versions of a Swift file" class="shot w-full rounded-xl sm:rounded-2xl">
+      </div>
+    </section>
+
+    <section class="border-y border-black/5 bg-white dark:border-white/5 dark:bg-[#1a191f]">
+      <div class="mx-auto max-w-4xl px-6 py-20">
+        <h2 class="text-center text-3xl font-bold tracking-tight sm:text-4xl">Twofold vs Meld at a glance</h2>
+        <div class="mt-10 overflow-x-auto rounded-2xl border border-black/5 dark:border-white/10">
+          <table class="w-full min-w-[520px] text-left text-sm">
+            <thead class="bg-[#faf8fe] text-zinc-500 dark:bg-white/5">
+              <tr>
+                <th class="px-5 py-4 font-medium"></th>
+                <th class="px-5 py-4 font-semibold text-brand">Twofold</th>
+                <th class="px-5 py-4 font-medium">Meld</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-black/5 dark:divide-white/5">
+              <tr>
+                <td class="px-5 py-4 font-medium">Price</td>
+                <td class="bg-brand/5 px-5 py-4"><strong class="text-brand">Free</strong></td>
+                <td class="px-5 py-4">Free</td>
+              </tr>
+              <tr>
+                <td class="px-5 py-4 font-medium">Open source</td>
+                <td class="bg-brand/5 px-5 py-4"><span class="text-add">● GPLv3</span></td>
+                <td class="px-5 py-4"><span class="text-add">● GPL</span></td>
+              </tr>
+              <tr>
+                <td class="px-5 py-4 font-medium">Native macOS app</td>
+                <td class="bg-brand/5 px-5 py-4"><span class="text-add">● Yes</span></td>
+                <td class="px-5 py-4"><span class="text-zinc-400">GTK, community builds</span></td>
+              </tr>
+              <tr>
+                <td class="px-5 py-4 font-medium">Text file comparison</td>
+                <td class="bg-brand/5 px-5 py-4"><span class="text-add">● Yes</span></td>
+                <td class="px-5 py-4"><span class="text-add">● Yes</span></td>
+              </tr>
+              <tr>
+                <td class="px-5 py-4 font-medium">Folder comparison</td>
+                <td class="bg-brand/5 px-5 py-4"><span class="text-add">● Yes</span></td>
+                <td class="px-5 py-4"><span class="text-add">● Yes</span></td>
+              </tr>
+              <tr>
+                <td class="px-5 py-4 font-medium">Merge and edit</td>
+                <td class="bg-brand/5 px-5 py-4"><span class="text-zinc-500">On the roadmap</span></td>
+                <td class="px-5 py-4"><span class="text-add">● Yes</span></td>
+              </tr>
+              <tr>
+                <td class="px-5 py-4 font-medium">Three-way comparison</td>
+                <td class="bg-brand/5 px-5 py-4"><span class="text-zinc-500">On the roadmap</span></td>
+                <td class="px-5 py-4"><span class="text-add">● Yes</span></td>
+              </tr>
+              <tr>
+                <td class="px-5 py-4 font-medium">Version control view</td>
+                <td class="bg-brand/5 px-5 py-4"><span class="text-zinc-400">No</span></td>
+                <td class="px-5 py-4"><span class="text-add">● Yes</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="mt-4 text-center text-xs text-zinc-500">Meld is a trademark of its owner. Pricing and features as we understand them; check the vendor for current details.</p>
+      </div>
+    </section>
+
+    <section class="mx-auto grid max-w-5xl gap-10 px-6 py-20 md:grid-cols-2">
+      <div>
+        <h2 class="text-2xl font-bold tracking-tight">Where Twofold is better</h2>
+        <ul class="mt-6 space-y-4 text-zinc-600 dark:text-zinc-400">
+          <li class="flex gap-3"><span class="text-add">✓</span><span><strong>Made for macOS.</strong> AppKit and Core Text, Mac keyboard shortcuts, Dock drop, and themes that follow the system. No GTK runtime.</span></li>
+          <li class="flex gap-3"><span class="text-add">✓</span><span><strong>Maintained for the Mac.</strong> Built and released from the main repository, as a universal app for Apple silicon and Intel.</span></li>
+          <li class="flex gap-3"><span class="text-add">✓</span><span><strong>Fast.</strong> 100,000 lines diff in under 60 ms; scrolling stays at 120 Hz.</span></li>
+        </ul>
+      </div>
+      <div>
+        <h2 class="text-2xl font-bold tracking-tight">Where Meld is better</h2>
+        <ul class="mt-6 space-y-4 text-zinc-600 dark:text-zinc-400">
+          <li class="flex gap-3"><span class="text-zinc-400">–</span><span><strong>Merging and three-way.</strong> Meld edits, merges and compares three files at once. Twofold v1 compares two and doesn't edit yet.</span></li>
+          <li class="flex gap-3"><span class="text-zinc-400">–</span><span><strong>Version control view.</strong> Meld can browse a repository's changes directly. Twofold works through <code class="font-mono text-sm">git difftool</code> instead.</span></li>
+          <li class="flex gap-3"><span class="text-zinc-400">–</span><span><strong>Cross-platform.</strong> Meld runs on Linux and Windows too. Twofold is Mac only.</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="mx-auto max-w-3xl px-6 pb-20 text-center">
+      <h2 class="text-3xl font-bold tracking-tight sm:text-4xl">Should you switch?</h2>
+      <p class="mt-6 text-lg text-zinc-600 dark:text-zinc-400">If you came to the Mac from Linux and miss Meld for reading diffs, Twofold is the closest native, free and open source equivalent. If you need Meld's three-way merge today, its community Mac builds still work, with a non-native interface.</p>
+      <a href="https://github.com/veturi/twofold/releases/latest" class="mt-10 inline-block rounded-full bg-brand px-7 py-3.5 text-base font-semibold text-white shadow-lg shadow-brand/30 transition hover:bg-brand-light">Download Twofold free</a>
+    </section>
+
+    <section class="border-t border-black/5 bg-white dark:border-white/5 dark:bg-[#1a191f]">
+      <div class="mx-auto max-w-3xl px-6 py-20">
+        <h2 class="text-center text-3xl font-bold tracking-tight">Questions</h2>
+        <div class="mt-8 divide-y divide-black/5 dark:divide-white/10">
+          <div class="py-5">
+            <h3 class="text-lg font-semibold">Is there an official Meld for Mac?</h3>
+            <p class="mt-2 text-zinc-600 dark:text-zinc-400">Meld&#x27;s official releases are for Linux and Windows. Mac builds come from the community. Twofold is a native, open source alternative made for macOS.</p>
+          </div>
+          <div class="py-5">
+            <h3 class="text-lg font-semibold">Is Twofold open source like Meld?</h3>
+            <p class="mt-2 text-zinc-600 dark:text-zinc-400">Yes. Twofold is licensed under the GPLv3, and the full source is on GitHub.</p>
+          </div>
+          <div class="py-5">
+            <h3 class="text-lg font-semibold">Can Twofold do three-way merges like Meld?</h3>
+            <p class="mt-2 text-zinc-600 dark:text-zinc-400">Not yet. Three-way merge for git mergetool is on the roadmap.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="border-t border-black/5 dark:border-white/5">
+    <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-10 text-sm text-zinc-500 sm:flex-row">
+      <div class="flex items-center gap-2">
+        <img src="/assets/icon.png" alt="" class="h-6 w-6">
+        Twofold · Free software under the GPLv3 · "Twofold" and its icon are trademarks of the project maintainer
+      </div>
+      <div class="flex gap-6">
+        <a href="https://github.com/veturi/twofold" class="hover:text-zinc-900 dark:hover:text-white">Source</a>
+        <a href="https://github.com/veturi/twofold/issues" class="hover:text-zinc-900 dark:hover:text-white">Issues</a>
+        <a href="https://github.com/veturi/twofold/releases" class="hover:text-zinc-900 dark:hover:text-white">Releases</a>
+      </div>
+    </div>
+    <div class="mx-auto max-w-6xl px-6 pb-10 text-center text-xs text-zinc-500 sm:text-left">
+      More comparisons:
+      <a href="/kaleidoscope-alternative/" class="hover:text-zinc-900 dark:hover:text-white">Kaleidoscope</a> ·
+      <a href="/beyond-compare-alternative/" class="hover:text-zinc-900 dark:hover:text-white">Beyond Compare</a> ·
+      <a href="/filemerge-alternative/" class="hover:text-zinc-900 dark:hover:text-white">FileMerge</a>
+    </div>
+  </footer>
+</body>
+</html>

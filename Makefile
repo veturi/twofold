@@ -2,7 +2,7 @@ APP := build/Twofold.app
 PREFIX ?= $(HOME)/.local
 APP_DIR ?= $(HOME)/Applications
 
-.PHONY: all app start test bench release icon install uninstall clean
+.PHONY: all app start test bench release icon social-card install uninstall clean
 
 all: app
 
@@ -29,6 +29,10 @@ release:
 ## Regenerate Resources/AppIcon.icns
 icon:
 	swift scripts/make-icon.swift Resources/AppIcon.icns
+
+## Regenerate the website's link preview image from its icon and hero screenshot
+social-card:
+	swift scripts/make-social-card.swift docs/assets/social-card.png
 
 ## Copy the app to ~/Applications and the twofold command to ~/.local/bin
 install: app
