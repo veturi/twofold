@@ -1,0 +1,52 @@
+#!/bin/bash
+# visdiff — open two files or two folders in VisDiff.
+#
+#   visdiff A B          compare A and B in a new window
+#   visdiff --wait A B   block until the window closes (for git difftool)
+#   visdiff              open the start window
+set -euo pipefail
+
+DEFAULT_APP=""
+APP="${VISDIFF_APP:-$DEFAULT_APP}"
+if [[ -z "$APP" ]]; then
+    for candidate in "/Applications/VisDiff.app" "$HOME/Applications/VisDiff.app"; do
+        if [[ -d "$candidate" ]]; then APP="$candidate"; break; fi
+    done
+fi
+if [[ ! -d "$APP" ]]; then
+    echo "visdiff: VisDiff.app not found. Run 'make install' or set VISDIFF_APP." >&2
+    exit 1
+fi
+
+usage() {
+    sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+WAIT=0
+PATHS=()
+for arg in "$@"; do
+    case "$arg" in
+        -w|--wait) WAIT=1 ;;
+        -h|--help) usage; exit 0 ;;
+        *)
+            if [[ ! -e "$arg" ]]; then
+                echo "visdiff: no such file or directory: $arg" >&2
+                exit 1
+            fi
+            if [[ -d "$arg" ]]; then
+                PATHS+=("$(cd "$arg" && pwd)")
+            else
+                PATHS+=("$(cd "$(dirname "$arg")" && pwd)/$(basename "$arg")")
+            fi
+            ;;
+    esac
+done
+
+OPEN_ARGS=(-n -a "$APP")
+if [[ $WAIT == 1 ]]; then OPEN_ARGS=(-W "${OPEN_ARGS[@]}"); fi
+
+if ((${#PATHS[@]})); then
+    exec open "${OPEN_ARGS[@]}" --args "${PATHS[@]}"
+else
+    exec open "${OPEN_ARGS[@]}"
+fi

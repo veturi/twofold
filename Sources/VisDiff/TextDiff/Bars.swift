@@ -1,0 +1,255 @@
+import AppKit
+
+/// Path headers above the panes: an A or B badge, then the path as breadcrumbs.
+@MainActor
+final class PathBarView: NSView {
+    static let height: CGFloat = 30
+
+    var urls: (URL?, URL?) = (nil, nil) { didSet { needsDisplay = true } }
+    var paneWidth: CGFloat = 300 { didSet { needsLayout = true; needsDisplay = true } }
+    var ribbonWidth: CGFloat = 64 { didSet { needsLayout = true; needsDisplay = true } }
+    let swapButton = NSButton()
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        swapButton.image = NSImage(systemSymbolName: "arrow.left.arrow.right.circle.fill", accessibilityDescription: "Swap Sides")
+        swapButton.isBordered = false
+        swapButton.imageScaling = .scaleProportionallyUpOrDown
+        swapButton.contentTintColor = Theme.secondaryText
+        swapButton.toolTip = "Swap Sides"
+        swapButton.action = #selector(ComparisonWindowController.swapSides(_:))
+        addSubview(swapButton)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override var isFlipped: Bool { true }
+
+    override func layout() {
+        super.layout()
+        let size: CGFloat = 18
+        let x = hasRibbon ? paneWidth + ribbonWidth / 2 - size / 2 : paneWidth - size - 10
+        swapButton.frame = CGRect(x: x, y: (bounds.height - size) / 2, width: size, height: size)
+    }
+
+    private var hasRibbon: Bool { ribbonWidth > 10 }
+
+    override func draw(_ dirtyRect: NSRect) {
+        Theme.chrome.setFill()
+        bounds.fill()
+        Theme.separator.setFill()
+        CGRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1).fill()
+        let gap: CGFloat = hasRibbon ? 16 : 40
+        drawSide("A", urls.0, CGRect(x: 0, y: 0, width: paneWidth - gap, height: bounds.height))
+        let rx = paneWidth + ribbonWidth
+        drawSide("B", urls.1, CGRect(x: rx, y: 0, width: bounds.width - rx - DiffCanvasView.stripWidth, height: bounds.height))
+    }
+
+    private func drawSide(_ letter: String, _ url: URL?, _ rect: CGRect) {
+        var x = rect.minX + 12
+        let mid = rect.midY
+        Badge.draw(letter, in: CGRect(x: x, y: mid - 8, width: 18, height: 16), filled: true)
+        x += 26
+
+        let font = NSFont.systemFont(ofSize: 12)
+        let dim: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: Theme.secondaryText]
+        let main: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: Theme.text]
+        guard let url else {
+            NSAttributedString(string: "No file", attributes: dim).draw(at: CGPoint(x: x, y: mid - 8))
+            return
+        }
+        let dir = (url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath
+        var comps = dir.split(separator: "/").map(String.init)
+        let name = NSAttributedString(string: url.lastPathComponent, attributes: main)
+        let sep = NSAttributedString(string: "  ⟩  ", attributes: dim)
+        let available = rect.maxX - x - 20 - name.size().width
+        var truncated = false
+        func crumbs() -> NSAttributedString {
+            let s = NSMutableAttributedString()
+            if truncated { s.append(NSAttributedString(string: "…", attributes: dim)); s.append(sep) }
+            for c in comps {
+                s.append(NSAttributedString(string: c, attributes: dim))
+                s.append(sep)
+            }
+            return s
+        }
+        var path = crumbs()
+        while path.size().width > available && !comps.isEmpty {
+            comps.removeFirst()
+            truncated = true
+            path = crumbs()
+        }
+        if path.size().width <= available {
+            path.draw(at: CGPoint(x: x, y: mid - 8))
+            x += path.size().width
+        }
+        let icon = NSWorkspace.shared.icon(forFile: url.path)
+        icon.draw(in: CGRect(x: x, y: mid - 8, width: 16, height: 16))
+        x += 20
+        name.draw(with: CGRect(x: x, y: mid - 8, width: max(10, rect.maxX - x), height: 17),
+                  options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
+    }
+}
+
+/// The purple A / B badge.
+enum Badge {
+    static func draw(_ letter: String, in r: CGRect, filled: Bool) {
+        let path = NSBezierPath(roundedRect: r, xRadius: 4, yRadius: 4)
+        (filled ? Theme.accent : Theme.accentSoft).setFill()
+        path.fill()
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: r.height * 0.7, weight: .bold),
+            .foregroundColor: filled ? NSColor.white : Theme.accent,
+        ]
+        let s = NSAttributedString(string: letter, attributes: attrs)
+        let size = s.size()
+        s.draw(at: CGPoint(x: r.midX - size.width / 2, y: r.midY - size.height / 2))
+    }
+}
+
+/// Bottom bar: view toggles on the left, status in the middle, change navigation on the right.
+@MainActor
+final class BottomBarView: NSView {
+    static let height: CGFloat = 32
+
+    let wrapButton = BottomBarView.iconButton("arrow.turn.down.left", "Wrap Lines", #selector(AppDelegate.toggleWrap(_:)))
+    let invisiblesButton = BottomBarView.iconButton("paragraphsign", "Show Invisibles", #selector(AppDelegate.toggleInvisibles(_:)))
+    let expandButton = BottomBarView.iconButton("arrow.up.and.down.text.horizontal", "Expand Unchanged Lines", #selector(ComparisonWindowController.toggleExpandAll(_:)))
+    let statusLabel = NSTextField(labelWithString: "")
+    let changeLabel = NSTextField(labelWithString: "")
+    let previousButton = BottomBarView.iconButton("chevron.up", "Previous Change", #selector(ComparisonWindowController.previousChange(_:)))
+    let nextButton = BottomBarView.iconButton("chevron.down", "Next Change", #selector(ComparisonWindowController.nextChange(_:)))
+
+    static func iconButton(_ symbol: String, _ tip: String, _ action: Selector) -> NSButton {
+        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: tip)
+            ?? NSImage(systemSymbolName: "circle", accessibilityDescription: tip)!
+        let b = NSButton(image: image, target: nil, action: action)
+        b.isBordered = false
+        b.toolTip = tip
+        b.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium)
+        b.contentTintColor = Theme.secondaryText
+        b.translatesAutoresizingMaskIntoConstraints = false
+        b.widthAnchor.constraint(equalToConstant: 26).isActive = true
+        return b
+    }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        for l in [statusLabel, changeLabel] {
+            l.font = .systemFont(ofSize: 12)
+            l.textColor = Theme.secondaryText
+            l.lineBreakMode = .byTruncatingTail
+        }
+        let left = NSStackView(views: [wrapButton, invisiblesButton, expandButton])
+        left.spacing = 4
+        let right = NSStackView(views: [changeLabel, previousButton, nextButton])
+        right.spacing = 6
+        right.setCustomSpacing(12, after: changeLabel)
+        for v in [left, right, statusLabel] as [NSView] {
+            v.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(v)
+        }
+        statusLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        NSLayoutConstraint.activate([
+            left.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            left.centerYAnchor.constraint(equalTo: centerYAnchor),
+            right.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
+            right.centerYAnchor.constraint(equalTo: centerYAnchor),
+            statusLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
+            statusLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+            statusLabel.leadingAnchor.constraint(greaterThanOrEqualTo: left.trailingAnchor, constant: 12),
+            statusLabel.trailingAnchor.constraint(lessThanOrEqualTo: right.leadingAnchor, constant: -12),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func setToggle(_ b: NSButton, on: Bool) {
+        b.contentTintColor = on ? Theme.accent : Theme.secondaryText
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        Theme.chrome.setFill()
+        bounds.fill()
+        Theme.separator.setFill()
+        CGRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1).fill()
+    }
+}
+
+/// A centred message shown in place of the diff: binary files, errors, empty states.
+@MainActor
+final class PlacardView: NSView {
+    private let image = NSImageView()
+    private let title = NSTextField(labelWithString: "")
+    private let subtitle = NSTextField(wrappingLabelWithString: "")
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        image.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 40, weight: .light)
+        image.contentTintColor = Theme.foldText
+        title.font = .systemFont(ofSize: 17, weight: .semibold)
+        title.textColor = Theme.text
+        subtitle.font = .systemFont(ofSize: 13)
+        subtitle.textColor = Theme.secondaryText
+        subtitle.alignment = .center
+        let stack = NSStackView(views: [image, title, subtitle])
+        stack.orientation = .vertical
+        stack.spacing = 8
+        stack.setCustomSpacing(16, after: image)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.centerXAnchor.constraint(equalTo: centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -20),
+            stack.widthAnchor.constraint(lessThanOrEqualToConstant: 420),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func show(symbol: String, title: String, subtitle: String) {
+        image.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+        self.title.stringValue = title
+        self.subtitle.stringValue = subtitle
+        isHidden = false
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        Theme.paneBackground.setFill()
+        bounds.fill()
+    }
+}
+
+/// A plain view that paints the chrome colour and accepts dropped files.
+@MainActor
+final class DropView: NSView {
+    var onDrop: (([URL]) -> Void)?
+    var background: NSColor = Theme.chrome
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func draw(_ dirtyRect: NSRect) {
+        background.setFill()
+        dirtyRect.fill()
+    }
+
+    static func urls(_ info: NSDraggingInfo) -> [URL] {
+        (info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? []
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        onDrop != nil && Self.urls(sender).count >= 2 ? .copy : []
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let urls = Self.urls(sender)
+        guard urls.count >= 2 else { return false }
+        onDrop?(urls)
+        return true
+    }
+}
