@@ -96,6 +96,8 @@ Copyright © 2026 the project authors.
 
 The project name and app icon are not covered by that license; see `TRADEMARKS.md`.
 
+The GitHub version is free forever. A Mac App Store version will cost a one-time 4,99 € to cover Apple's developer fee; it is the same app, and there will never be a subscription. Contributions are welcome under the terms in `CONTRIBUTING.md`.
+
 ## Website
 
 The marketing site lives in `docs/`: one HTML file, Tailwind from its CDN, no build step. To publish it, open the repository's Settings → Pages, choose "Deploy from a branch", and pick the `main` branch and the `/docs` folder. For a custom domain, set it in the same screen (GitHub adds a `docs/CNAME` file).

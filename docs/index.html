@@ -40,6 +40,7 @@
       <div class="flex items-center gap-6 text-sm">
         <a href="#features" class="hidden text-zinc-600 hover:text-zinc-900 sm:block dark:text-zinc-400 dark:hover:text-white">Features</a>
         <a href="#compare" class="hidden text-zinc-600 hover:text-zinc-900 sm:block dark:text-zinc-400 dark:hover:text-white">Compare</a>
+        <a href="#pricing" class="hidden text-zinc-600 hover:text-zinc-900 sm:block dark:text-zinc-400 dark:hover:text-white">Pricing</a>
         <a href="#roadmap" class="hidden text-zinc-600 hover:text-zinc-900 sm:block dark:text-zinc-400 dark:hover:text-white">Roadmap</a>
         <a data-repo="" href="#" class="rounded-full bg-zinc-900 px-4 py-1.5 font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">GitHub</a>
       </div>
@@ -72,7 +73,7 @@
             Build from source
           </a>
         </div>
-        <p class="mt-4 text-sm text-zinc-500">macOS 26 or later · Apple silicon &amp; Intel · Mac App Store version coming later</p>
+        <p class="mt-4 text-sm text-zinc-500">macOS 26 or later · Apple silicon &amp; Intel · Free on GitHub, 4,99 € once on the Mac App Store (coming later)</p>
       </div>
 
       <!-- Screenshot -->
@@ -228,7 +229,7 @@
             <tbody class="divide-y divide-black/5 dark:divide-white/5">
               <tr>
                 <td class="px-5 py-4 font-medium">Price</td>
-                <td class="bg-brand/5 px-5 py-4 font-semibold text-brand">Free forever</td>
+                <td class="bg-brand/5 px-5 py-4 font-semibold text-brand">Free on GitHub<br><span class="font-normal text-zinc-500">4,99 € once on the App Store</span></td>
                 <td class="px-5 py-4">Subscription</td>
                 <td class="px-5 py-4">Paid license</td>
                 <td class="px-5 py-4">Free with Xcode</td>
@@ -306,6 +307,41 @@
       </p>
     </section>
 
+    <!-- Pricing -->
+    <section id="pricing" class="mx-auto max-w-5xl px-6 py-24">
+      <div class="mx-auto max-w-2xl text-center">
+        <h2 class="text-4xl font-bold tracking-tight sm:text-5xl">Two ways to get it.<br>Neither is a subscription.</h2>
+        <p class="mt-4 text-lg text-zinc-600 dark:text-zinc-400">Same app, same features, nothing locked. You only choose how it gets onto your Mac.</p>
+      </div>
+      <div class="mt-14 grid gap-6 md:grid-cols-2">
+        <div class="flex flex-col rounded-3xl border border-black/5 bg-white p-8 dark:border-white/10 dark:bg-white/5">
+          <h3 class="text-xl font-semibold">GitHub</h3>
+          <div class="mt-4 flex items-baseline gap-2"><span class="text-5xl font-bold tracking-tight">0 €</span><span class="text-zinc-500">forever</span></div>
+          <ul class="mt-6 flex-1 space-y-3 text-zinc-600 dark:text-zinc-400">
+            <li class="flex gap-3"><span class="text-brand">✓</span> Download a release, or build it with <code class="font-mono text-sm">make start</code></li>
+            <li class="flex gap-3"><span class="text-brand">✓</span> Command line tool and <code class="font-mono text-sm">git difftool</code></li>
+            <li class="flex gap-3"><span class="text-brand">✓</span> All source code, GPLv3</li>
+          </ul>
+          <a data-repo="/releases/latest" href="#" class="mt-8 rounded-full border border-zinc-300 px-6 py-3 text-center font-semibold hover:bg-zinc-50 dark:border-white/15 dark:hover:bg-white/10">Download from GitHub</a>
+        </div>
+        <div class="relative flex flex-col rounded-3xl border-2 border-brand bg-white p-8 shadow-xl shadow-brand/10 dark:bg-white/5">
+          <span class="absolute -top-3 left-8 rounded-full bg-brand px-3 py-0.5 text-xs font-semibold text-white">Coming later</span>
+          <h3 class="text-xl font-semibold">Mac App Store</h3>
+          <div class="mt-4 flex items-baseline gap-2"><span class="text-5xl font-bold tracking-tight">4,99 €</span><span class="text-zinc-500">once</span></div>
+          <ul class="mt-6 flex-1 space-y-3 text-zinc-600 dark:text-zinc-400">
+            <li class="flex gap-3"><span class="text-brand">✓</span> One-click install, automatic updates</li>
+            <li class="flex gap-3"><span class="text-brand">✓</span> Signed and reviewed by Apple</li>
+            <li class="flex gap-3"><span class="text-brand">✓</span> Covers Apple's yearly developer fee, nothing more</li>
+          </ul>
+          <div class="mt-8 rounded-full bg-brand/10 px-6 py-3 text-center font-semibold text-brand dark:text-brand-light">Not on the App Store yet</div>
+        </div>
+      </div>
+      <p class="mt-8 text-center text-sm text-zinc-500">
+        Official builds come only from this project's GitHub releases and, later, the Mac App Store.
+        If you see Twofold for sale anywhere else, it isn't us.
+      </p>
+    </section>
+
     <!-- Roadmap -->
     <section id="roadmap" class="border-y border-black/5 bg-white dark:border-white/5 dark:bg-[#1a191f]">
       <div class="mx-auto max-w-6xl px-6 py-24">
@@ -337,7 +373,7 @@
           </div>
           <div class="flex gap-4 rounded-2xl border border-black/5 p-6 sm:col-span-2 dark:border-white/10">
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full border-2 border-brand"></span>
-            <div><h3 class="font-semibold">Mac App Store</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">One-click install and updates. The source stays open, and there will never be a subscription.</p></div>
+            <div><h3 class="font-semibold">Mac App Store</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">4,99 € once, for one-click install and automatic updates. The GitHub version stays free, and there will never be a subscription.</p></div>
           </div>
         </div>
       </div>
@@ -391,7 +427,7 @@ git config --global difftool.prompt false</code></pre>
     <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-10 text-sm text-zinc-500 sm:flex-row">
       <div class="flex items-center gap-2">
         <img src="assets/icon.png" alt="" class="h-6 w-6">
-        Twofold · GPLv3 · Made for the Mac
+        Twofold · Free software under the GPLv3 · "Twofold" and its icon are trademarks of the project maintainer
       </div>
       <div class="flex gap-6">
         <a data-repo="" href="#" class="hover:text-zinc-900 dark:hover:text-white">Source</a>
