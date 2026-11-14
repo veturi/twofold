@@ -29,49 +29,57 @@ func draw(_ s: CGFloat) -> NSBitmapImageRep {
     NSGraphicsContext.restoreGraphicsState()
     NSGradient(colors: [hex(0xA46BFF), hex(0x6B2FD6)])!.draw(in: shape, angle: -70)
 
-    // Two panes.
-    let paneW = 250 * u, paneH = 560 * u, top = 230 * u
-    let leftPane = NSRect(x: 190 * u, y: top, width: paneW, height: paneH)
-    let rightPane = NSRect(x: 584 * u, y: top, width: paneW, height: paneH)
-    for p in [leftPane, rightPane] {
-        hex(0xFFFFFF, 0.96).setFill()
-        NSBezierPath(roundedRect: p, xRadius: 40 * u, yRadius: 40 * u).fill()
-    }
-    // Text lines and change bands.
-    func lines(_ pane: NSRect, _ bands: [(Int, NSColor)]) {
+    // A sheet folded in two: each half is a page sheared away from the crease.
+    let pageW = 300 * u, pageH = 520 * u, crease = 512 * u, base = 262 * u, slope: CGFloat = 0.16
+    func page(_ side: CGFloat, _ fill: NSColor, _ bands: [(Int, NSColor)]) {
+        NSGraphicsContext.saveGraphicsState()
+        let t = NSAffineTransform()
+        t.transformStruct = NSAffineTransformStruct(m11: 1, m12: -side * slope, m21: 0, m22: 1, tX: crease, tY: base)
+        t.concat()
+        let rect = NSRect(x: side < 0 ? -pageW : 0, y: 0, width: pageW, height: pageH)
+        let r: CGFloat = 34 * u
+        // Round only the outer corners so the halves meet in a straight crease.
+        let path = NSBezierPath()
+        let outer = side < 0 ? rect.minX : rect.maxX, inner = side < 0 ? rect.maxX : rect.minX
+        let dir: CGFloat = side < 0 ? 1 : -1
+        path.move(to: NSPoint(x: inner, y: rect.minY))
+        path.line(to: NSPoint(x: outer + dir * r, y: rect.minY))
+        path.curve(to: NSPoint(x: outer, y: rect.minY + r), controlPoint1: NSPoint(x: outer, y: rect.minY), controlPoint2: NSPoint(x: outer, y: rect.minY))
+        path.line(to: NSPoint(x: outer, y: rect.maxY - r))
+        path.curve(to: NSPoint(x: outer + dir * r, y: rect.maxY), controlPoint1: NSPoint(x: outer, y: rect.maxY), controlPoint2: NSPoint(x: outer, y: rect.maxY))
+        path.line(to: NSPoint(x: inner, y: rect.maxY))
+        path.close()
+        fill.setFill()
+        path.fill()
+        path.addClip()
         for i in 0..<7 {
-            let y = pane.maxY - CGFloat(70 + i * 68) * u
+            let y = rect.maxY - CGFloat(64 + i * 66) * u
             if let band = bands.first(where: { $0.0 == i }) {
                 band.1.setFill()
-                NSRect(x: pane.minX, y: y - 26 * u, width: pane.width, height: 68 * u).fill()
+                NSRect(x: rect.minX, y: y - 25 * u, width: pageW, height: 66 * u).fill()
             }
-            hex(0x3B3550, 0.28).setFill()
-            let w = pane.width * (i % 3 == 0 ? 0.62 : (i % 3 == 1 ? 0.78 : 0.48))
-            NSBezierPath(roundedRect: NSRect(x: pane.minX + 30 * u, y: y, width: w - 30 * u, height: 16 * u), xRadius: 8 * u, yRadius: 8 * u).fill()
+            hex(0x3B3550, 0.26).setFill()
+            let w = pageW * (i % 3 == 0 ? 0.58 : (i % 3 == 1 ? 0.74 : 0.46))
+            let x = side < 0 ? rect.minX + 34 * u : rect.minX + 30 * u
+            NSBezierPath(roundedRect: NSRect(x: x, y: y, width: w - 34 * u, height: 16 * u), xRadius: 8 * u, yRadius: 8 * u).fill()
         }
+        // Shade toward the crease for depth.
+        let shade = NSGradient(colors: [hex(0x2A0E5C, 0), hex(0x2A0E5C, side < 0 ? 0.10 : 0.16)])!
+        shade.draw(in: rect, angle: side < 0 ? 0 : 180)
+        NSGraphicsContext.restoreGraphicsState()
     }
     NSGraphicsContext.saveGraphicsState()
-    NSBezierPath(roundedRect: leftPane, xRadius: 40 * u, yRadius: 40 * u).addClip()
-    lines(leftPane, [(1, hex(0x6C99E5, 0.35)), (4, hex(0xD4706A, 0.38))])
+    let drop = NSShadow()
+    drop.shadowColor = hex(0x1E0848, 0.45)
+    drop.shadowBlurRadius = 30 * u
+    drop.shadowOffset = NSSize(width: 0, height: -14 * u)
+    drop.set()
+    page(-1, hex(0xFFFFFF), [(1, hex(0x6C99E5, 0.38)), (4, hex(0xD4706A, 0.40))])
+    page(1, hex(0xF6F2FF), [(1, hex(0x6C99E5, 0.38)), (3, hex(0x67C065, 0.45)), (4, hex(0x67C065, 0.45))])
     NSGraphicsContext.restoreGraphicsState()
-    NSGraphicsContext.saveGraphicsState()
-    NSBezierPath(roundedRect: rightPane, xRadius: 40 * u, yRadius: 40 * u).addClip()
-    lines(rightPane, [(1, hex(0x6C99E5, 0.35)), (3, hex(0x67C065, 0.42)), (4, hex(0x67C065, 0.42))])
-    NSGraphicsContext.restoreGraphicsState()
-
-    // Connectors.
-    func connector(_ y1: CGFloat, _ y2: CGFloat, _ c: NSColor) {
-        let p = NSBezierPath()
-        p.move(to: NSPoint(x: leftPane.maxX, y: y1))
-        p.curve(to: NSPoint(x: rightPane.minX, y: y2), controlPoint1: NSPoint(x: 512 * u, y: y1), controlPoint2: NSPoint(x: 512 * u, y: y2))
-        p.lineWidth = 22 * u
-        p.lineCapStyle = .round
-        c.setStroke()
-        p.stroke()
-    }
-    let row: (Int) -> CGFloat = { leftPane.maxY - CGFloat(70 + $0 * 68) * u + 8 * u }
-    connector(row(1), row(1), hex(0xFFFFFF, 0.9))
-    connector(row(4) - 8 * u, row(3) - 42 * u, hex(0xFFFFFF, 0.9))
+    // The crease.
+    hex(0x2A0E5C, 0.22).setFill()
+    NSRect(x: crease - 1.5 * u, y: base, width: 3 * u, height: pageH).fill()
     NSGraphicsContext.restoreGraphicsState()
     return rep
 }
