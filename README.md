@@ -82,7 +82,7 @@ make icon      # regenerate Resources/AppIcon.icns
 The app can render a window offscreen to a PNG, which is how the UI is checked without a screen:
 
 ```sh
-build/VisDiff.app/Contents/MacOS/VisDiff --snapshot out.png [--appearance dark] [--layout blocks] [--size 1360x860] [--change 3] [--bench] A B
+build/VisDiff.app/Contents/MacOS/VisDiff --snapshot out.png [--appearance dark] [--layout blocks] [--size 1360x860] [--change 3] [--scale 2] [--bench] A B
 ```
 
 `--bench` also prints frame render times while scrolling.
@@ -95,3 +95,9 @@ This project is free software under the GNU General Public License v3.0; see `LI
 Copyright © 2026 the project authors.
 
 The project name and app icon are not covered by that license; see `TRADEMARKS.md`.
+
+## Website
+
+The marketing site lives in `docs/`: one HTML file, Tailwind from its CDN, no build step. To publish it, open the repository's Settings → Pages, choose "Deploy from a branch", and pick the `main` branch and the `/docs` folder. For a custom domain, set it in the same screen (GitHub adds a `docs/CNAME` file).
+
+Set the repository URL once, in the `REPO` constant at the bottom of `docs/index.html`. Screenshots are real app renders made with `--snapshot ... --scale 2`.

@@ -11,6 +11,8 @@ struct LaunchOptions {
     var change: Int?
     var fontSize: CGFloat?
     var bench = false
+    var scale: CGFloat = 1
+    var file: String?
 
     static func parse(_ args: [String]) -> LaunchOptions {
         var o = LaunchOptions()
@@ -28,6 +30,8 @@ struct LaunchOptions {
             case "--wrap": o.wrap = true
             case "--no-wrap": o.wrap = false
             case "--bench": o.bench = true
+            case "--file": o.file = next()
+            case "--scale": o.scale = next().flatMap { Double($0) }.map { CGFloat($0) } ?? 1
             case "--change": o.change = next().flatMap { Int($0) }.map { $0 - 1 }
             case "--font-size": o.fontSize = next().flatMap { Double($0) }.map { CGFloat($0) }
             case "--size":

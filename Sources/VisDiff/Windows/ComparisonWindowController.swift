@@ -19,6 +19,7 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
     private var folderBusy = false
     private var layoutGroup: NSToolbarItemGroup?
     private var selectedEntry: FolderEntry?
+    var initialSelection: String?
 
     var onClose: ((ComparisonWindowController) -> Void)?
     var onDrop: (([URL]) -> Void)?
@@ -80,7 +81,7 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
     func start() {
         switch kind {
         case .files: diffVC.load(left: left, right: right)
-        case .folders: scanFolders()
+        case .folders: scanFolders(keeping: initialSelection)
         }
     }
 

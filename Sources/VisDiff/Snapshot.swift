@@ -12,7 +12,7 @@ enum Snapshot {
             let welcome = WelcomeWindowController(prefill: o.paths.first.map { URL(fileURLWithPath: $0) })
             if o.appearance == .dark { welcome.window?.appearance = NSAppearance(named: .darkAqua) }
             welcome.window?.layoutIfNeeded()
-            capture(welcome.window!, to: out)
+            capture(welcome.window!, to: out, scale: o.scale)
             exit(0)
         }
         let p = Preferences.shared
@@ -24,6 +24,7 @@ enum Snapshot {
         let a = URL(fileURLWithPath: o.paths[0]), b = URL(fileURLWithPath: o.paths[1])
         let isDir = (try? a.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
         let wc = ComparisonWindowController(left: a, right: b, kind: isDir ? .folders : .files)
+        wc.initialSelection = o.file
         guard let window = wc.window else { exit(1) }
         switch o.appearance {
         case .dark?: window.appearance = NSAppearance(named: .darkAqua)
@@ -47,7 +48,7 @@ enum Snapshot {
             print(String(format: "ready after %.0f ms", Date().timeIntervalSince(started) * 1000 - 250))
             if o.bench { benchmark(wc.diffVC.canvas) }
             if let c = o.change { wc.diffVC.canvas.goToChange(c, animated: false) }
-            capture(window, to: out)
+            capture(window, to: out, scale: o.scale)
             exit(0)
         }
     }
@@ -74,10 +75,14 @@ enum Snapshot {
                      times.count, avg, times[times.count * 95 / 100], times.last ?? 0))
     }
 
-    static func capture(_ window: NSWindow, to path: String) {
+    static func capture(_ window: NSWindow, to path: String, scale: CGFloat = 1) {
         guard let view = window.contentView?.superview ?? window.contentView else { exit(1) }
         view.layoutSubtreeIfNeeded()
-        guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { exit(1) }
+        let b = view.bounds
+        guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(b.width * scale), pixelsHigh: Int(b.height * scale),
+                                         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { exit(1) }
+        rep.size = b.size
         view.cacheDisplay(in: view.bounds, to: rep)
         guard let png = rep.representation(using: .png, properties: [:]) else { exit(1) }
         do {
