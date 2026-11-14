@@ -1,20 +1,20 @@
 #!/bin/bash
-# visdiff — open two files or two folders in VisDiff.
+# twofold — open two files or two folders in Twofold.
 #
-#   visdiff A B          compare A and B in a new window
-#   visdiff --wait A B   block until the window closes (for git difftool)
-#   visdiff              open the start window
+#   twofold A B          compare A and B in a new window
+#   twofold --wait A B   block until the window closes (for git difftool)
+#   twofold              open the start window
 set -euo pipefail
 
 DEFAULT_APP=""
-APP="${VISDIFF_APP:-$DEFAULT_APP}"
+APP="${TWOFOLD_APP:-$DEFAULT_APP}"
 if [[ -z "$APP" ]]; then
-    for candidate in "/Applications/VisDiff.app" "$HOME/Applications/VisDiff.app"; do
+    for candidate in "/Applications/Twofold.app" "$HOME/Applications/Twofold.app"; do
         if [[ -d "$candidate" ]]; then APP="$candidate"; break; fi
     done
 fi
 if [[ ! -d "$APP" ]]; then
-    echo "visdiff: VisDiff.app not found. Run 'make install' or set VISDIFF_APP." >&2
+    echo "twofold: Twofold.app not found. Run 'make install' or set TWOFOLD_APP." >&2
     exit 1
 fi
 
@@ -30,7 +30,7 @@ for arg in "$@"; do
         -h|--help) usage; exit 0 ;;
         *)
             if [[ ! -e "$arg" ]]; then
-                echo "visdiff: no such file or directory: $arg" >&2
+                echo "twofold: no such file or directory: $arg" >&2
                 exit 1
             fi
             if [[ -d "$arg" ]]; then

@@ -2,14 +2,14 @@
 import PackageDescription
 
 let package = Package(
-    name: "VisDiff",
+    name: "Twofold",
     platforms: [.macOS(.v26)],
     products: [
-        .executable(name: "VisDiff", targets: ["VisDiff"]),
+        .executable(name: "Twofold", targets: ["Twofold"]),
     ],
     targets: [
         .target(name: "DiffCore"),
-        .executableTarget(name: "VisDiff", dependencies: ["DiffCore"]),
+        .executableTarget(name: "Twofold", dependencies: ["DiffCore"]),
         .testTarget(name: "DiffCoreTests", dependencies: ["DiffCore"]),
     ]
 )

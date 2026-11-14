@@ -1,4 +1,4 @@
-# VisDiff
+# Twofold
 
 A native, fast, good-looking visual diff tool for macOS. Free and open source, no subscription.
 
@@ -34,18 +34,18 @@ make start ARGS="dirA dirB"        # build and compare two folders
 make install
 ```
 
-This copies `VisDiff.app` to `~/Applications` and the `visdiff` command to `~/.local/bin`. Make sure that directory is on your `PATH`. Then:
+This copies `Twofold.app` to `~/Applications` and the `twofold` command to `~/.local/bin`. Make sure that directory is on your `PATH`. Then:
 
 ```sh
-visdiff a.swift b.swift
-visdiff --wait a.swift b.swift   # block until the window closes
+twofold a.swift b.swift
+twofold --wait a.swift b.swift   # block until the window closes
 ```
 
 ### As git difftool
 
 ```sh
-git config --global diff.tool visdiff
-git config --global difftool.visdiff.cmd 'visdiff --wait "$LOCAL" "$REMOTE"'
+git config --global diff.tool twofold
+git config --global difftool.twofold.cmd 'twofold --wait "$LOCAL" "$REMOTE"'
 git config --global difftool.prompt false
 ```
 
@@ -77,12 +77,12 @@ make release   # universal arm64 + x86_64 bundle
 make icon      # regenerate Resources/AppIcon.icns
 ```
 
-`DiffCore` holds the diff engine and folder comparison with no AppKit dependency. `VisDiff` is the AppKit app. The diff view draws with Core Text into a single custom view and caches typeset rows.
+`DiffCore` holds the diff engine and folder comparison with no AppKit dependency. `Twofold` is the AppKit app. The diff view draws with Core Text into a single custom view and caches typeset rows.
 
 The app can render a window offscreen to a PNG, which is how the UI is checked without a screen:
 
 ```sh
-build/VisDiff.app/Contents/MacOS/VisDiff --snapshot out.png [--appearance dark] [--layout blocks] [--size 1360x860] [--change 3] [--scale 2] [--bench] A B
+build/Twofold.app/Contents/MacOS/Twofold --snapshot out.png [--appearance dark] [--layout blocks] [--size 1360x860] [--change 3] [--scale 2] [--bench] A B
 ```
 
 `--bench` also prints frame render times while scrolling.
@@ -111,6 +111,6 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-The workflow runs the tests, builds a universal app stamped with the version, and publishes `VisDiff-1.0.0.zip` with its SHA-256 as a GitHub release. You can also start it by hand from the Actions tab.
+The workflow runs the tests, builds a universal app stamped with the version, and publishes `Twofold-1.0.0.zip` with its SHA-256 as a GitHub release. You can also start it by hand from the Actions tab.
 
 Builds are ad-hoc signed by default, so macOS asks users to allow the app on first launch; the release notes explain how. To ship a signed and notarized app instead, add the Developer ID secrets listed at the top of the workflow file.

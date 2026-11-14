@@ -1,4 +1,4 @@
-# VisDiff — implementation plan
+# Twofold — implementation plan
 
 A native, open-source visual diff tool for macOS. Version 1 does two things and does them beautifully: compare two text files, and compare two folders.
 
@@ -11,7 +11,7 @@ Status: version 1 implemented. See README.md for usage. One addition beyond this
 - Compare two text files side by side, read-only.
 - Compare two folders recursively, with a sidebar of changed files and the file diff alongside.
 - Light and dark themes, following the system by default, with a manual override.
-- Open comparisons from the command line (`visdiff a b`), by drag and drop, and from an open panel.
+- Open comparisons from the command line (`twofold a b`), by drag and drop, and from an open panel.
 - Usable as `git difftool`.
 
 ### Explicitly out of scope for v1
@@ -35,7 +35,7 @@ These are made so that implementation needs no further input. Each can be vetoed
 | Architecture | arm64 and x86_64 universal in release builds | Costs one flag |
 | Dependencies | None | Everything needed is in the SDK; keeps the build trivial |
 | Sandbox | Off, ad-hoc code signature | A diff tool must read arbitrary paths passed on the command line |
-| App name | VisDiff, bundle id `org.visdiff.app` | Matches the folder; easy to change later |
+| App name | Twofold, bundle id `org.twofold.app` | Renamed from the working name VisDiff after v1 |
 | Licence | GPLv3, with the name and icon reserved as trademarks | Keeps the code open while stopping closed-source and app store copies |
 
 ## 3. What it looks like
@@ -75,7 +75,7 @@ Default font is SF Mono 12 pt. Command-plus and Command-minus change the size; t
 ## 4. Architecture
 
 ```
-visdiff/
+twofold/
   Package.swift
   Makefile
   PLAN.md  README.md  LICENSE
@@ -87,7 +87,7 @@ visdiff/
       DiffModel.swift        hunks, block kinds, stats
       FolderScanner.swift    directory walk and pairing
       FolderCompare.swift    per-file status
-    VisDiff/               the app executable
+    Twofold/               the app executable
       main.swift  AppDelegate.swift  CommandLine.swift
       Theme.swift
       Windows/               window controller, toolbar, menus
@@ -101,7 +101,7 @@ visdiff/
     Info.plist  AppIcon.icns
   scripts/
     bundle.sh              swift build, assemble .app, ad-hoc sign
-    visdiff                command-line launcher
+    twofold                command-line launcher
 ```
 
 `DiffCore` knows nothing about the UI. The app target depends on it and never the reverse.
@@ -149,7 +149,7 @@ visdiff/
 
 ### 4.6 Command line
 
-`scripts/visdiff` is installed to a directory on the path by `make install`. It resolves its arguments to absolute paths and launches the app with them. With `--wait` it blocks until the window closes, which is what `git difftool` needs. The README carries the git configuration snippet.
+`scripts/twofold` is installed to a directory on the path by `make install`. It resolves its arguments to absolute paths and launches the app with them. With `--wait` it blocks until the window closes, which is what `git difftool` needs. The README carries the git configuration snippet.
 
 ## 5. Performance targets
 
@@ -185,7 +185,7 @@ Each milestone ends with passing tests and a commit. More commits land inside mi
 | 3 | Ribbon and Fluid layout | Connectors including the line-to-block form for additions and removals, fluid scroll mapping, layout switch; scrolling benchmark meets target |
 | 4 | Shell | Toolbar, title and subtitle, breadcrumb path bars with swap button, bottom bar with change counter, change markers beside the scroller, change navigation with animation, menus, welcome window, drag and drop, appearance override, font size |
 | 5 | Folder comparison | Scanner, streaming status, sidebar, filter, detail view; folder benchmark meets target |
-| 6 | Command line and polish | `visdiff` launcher with `--wait`, git difftool instructions, file watching, app icon, binary and error placards, README with screenshots |
+| 6 | Command line and polish | `twofold` launcher with `--wait`, git difftool instructions, file watching, app icon, binary and error placards, README with screenshots |
 
 ## 8. Risks
 

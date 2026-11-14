@@ -23,7 +23,7 @@ final class WelcomeWindowController: NSWindowController {
         window.isRestorable = false
         super.init(window: window)
 
-        let title = NSTextField(labelWithString: "VisDiff")
+        let title = NSTextField(labelWithString: "Twofold")
         title.font = .systemFont(ofSize: 26, weight: .bold)
         title.textColor = Theme.text
         let subtitle = NSTextField(labelWithString: "Drop two files or two folders to compare them.")

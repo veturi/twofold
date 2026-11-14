@@ -12,7 +12,7 @@ enum AppearanceChoice: String {
 @MainActor
 final class Preferences {
     static let shared = Preferences()
-    static let didChange = Notification.Name("VisDiffPreferencesDidChange")
+    static let didChange = Notification.Name("TwofoldPreferencesDidChange")
 
     private let defaults = UserDefaults.standard
     var overrides: [String: Any] = [:]

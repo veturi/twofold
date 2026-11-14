@@ -76,7 +76,7 @@ func draw(_ s: CGFloat) -> NSBitmapImageRep {
     return rep
 }
 
-let iconset = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("VisDiff-\(getpid()).iconset")
+let iconset = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("Twofold-\(getpid()).iconset")
 try? FileManager.default.removeItem(at: iconset)
 try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
 for base in [16, 32, 128, 256, 512] {

@@ -2,7 +2,7 @@ import AppKit
 
 /// Renders a comparison window offscreen to a PNG and exits. Used to verify the UI without a screen.
 ///
-///     VisDiff --snapshot out.png [--appearance dark] [--layout blocks] [--size 1360x860] [--change 3] A B
+///     Twofold --snapshot out.png [--appearance dark] [--layout blocks] [--size 1360x860] [--change 3] A B
 @MainActor
 enum Snapshot {
     static func run(_ o: LaunchOptions) {

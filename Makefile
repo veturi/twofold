@@ -1,4 +1,4 @@
-APP := build/VisDiff.app
+APP := build/Twofold.app
 PREFIX ?= $(HOME)/.local
 APP_DIR ?= $(HOME)/Applications
 
@@ -6,13 +6,13 @@ APP_DIR ?= $(HOME)/Applications
 
 all: app
 
-## Build build/VisDiff.app (release, native architecture)
+## Build build/Twofold.app (release, native architecture)
 app:
 	@./scripts/bundle.sh release
 
 ## Build and launch. Pass files or folders with ARGS="a b"
 start: app
-	@VISDIFF_APP="$(CURDIR)/$(APP)" ./scripts/visdiff $(ARGS)
+	@TWOFOLD_APP="$(CURDIR)/$(APP)" ./scripts/twofold $(ARGS)
 
 ## Run the unit tests
 test:
@@ -30,17 +30,17 @@ release:
 icon:
 	swift scripts/make-icon.swift Resources/AppIcon.icns
 
-## Copy the app to ~/Applications and the visdiff command to ~/.local/bin
+## Copy the app to ~/Applications and the twofold command to ~/.local/bin
 install: app
 	@mkdir -p "$(APP_DIR)" "$(PREFIX)/bin"
-	@rm -rf "$(APP_DIR)/VisDiff.app"
+	@rm -rf "$(APP_DIR)/Twofold.app"
 	@cp -R "$(APP)" "$(APP_DIR)/"
-	@sed 's|^DEFAULT_APP=.*|DEFAULT_APP="$(APP_DIR)/VisDiff.app"|' scripts/visdiff > "$(PREFIX)/bin/visdiff"
-	@chmod +x "$(PREFIX)/bin/visdiff"
-	@echo "Installed $(APP_DIR)/VisDiff.app and $(PREFIX)/bin/visdiff"
+	@sed 's|^DEFAULT_APP=.*|DEFAULT_APP="$(APP_DIR)/Twofold.app"|' scripts/twofold > "$(PREFIX)/bin/twofold"
+	@chmod +x "$(PREFIX)/bin/twofold"
+	@echo "Installed $(APP_DIR)/Twofold.app and $(PREFIX)/bin/twofold"
 
 uninstall:
-	rm -rf "$(APP_DIR)/VisDiff.app" "$(PREFIX)/bin/visdiff"
+	rm -rf "$(APP_DIR)/Twofold.app" "$(PREFIX)/bin/twofold"
 
 clean:
 	rm -rf .build build

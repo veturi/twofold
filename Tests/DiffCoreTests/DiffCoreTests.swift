@@ -178,7 +178,7 @@ final class DiffTests: XCTestCase {
 
     /// Our total edit count must match `diff --minimal` on random files.
     func testMatchesSystemDiff() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("visdiff-x-\(UUID().uuidString)")
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("twofold-x-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
         var rng = LCG(state: 99)
@@ -213,7 +213,7 @@ final class DiffTests: XCTestCase {
 final class FolderTests: XCTestCase {
     func testFolderComparison() async throws {
         let fm = FileManager.default
-        let root = fm.temporaryDirectory.appendingPathComponent("visdiff-f-\(UUID().uuidString)")
+        let root = fm.temporaryDirectory.appendingPathComponent("twofold-f-\(UUID().uuidString)")
         let l = root.appendingPathComponent("L"), r = root.appendingPathComponent("R")
         defer { try? fm.removeItem(at: root) }
         func write(_ base: URL, _ path: String, _ text: String) throws {

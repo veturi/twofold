@@ -216,14 +216,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let down = String(Character(UnicodeScalar(NSDownArrowFunctionKey)!))
         let up = String(Character(UnicodeScalar(NSUpArrowFunctionKey)!))
 
-        _ = submenu("VisDiff", [
-            item("About VisDiff", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
+        _ = submenu("Twofold", [
+            item("About Twofold", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
             .separator(),
-            item("Hide VisDiff", #selector(NSApplication.hide(_:)), "h"),
+            item("Hide Twofold", #selector(NSApplication.hide(_:)), "h"),
             item("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),
             item("Show All", #selector(NSApplication.unhideAllApplications(_:))),
             .separator(),
-            item("Quit VisDiff", #selector(NSApplication.terminate(_:)), "q"),
+            item("Quit Twofold", #selector(NSApplication.terminate(_:)), "q"),
         ])
         _ = submenu("File", [
             item("New Comparison…", #selector(newComparison(_:)), "n"),
