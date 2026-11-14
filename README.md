@@ -96,7 +96,7 @@ Copyright © 2026 the project authors.
 
 The project name and app icon are not covered by that license; see `TRADEMARKS.md`.
 
-The GitHub version is free forever. A Mac App Store version will cost a one-time 4,99 € to cover Apple's developer fee; it is the same app, and there will never be a subscription. Contributions are welcome under the terms in `CONTRIBUTING.md`.
+The GitHub version is free forever. A Mac App Store version will cost a one-time 4,99 € to cover Apple's developer fee; it is the same app, and there will never be a subscription. If you use the free version and want to support the project, buying the App Store version once it's out is the simplest way. Contributions are welcome under the terms in `CONTRIBUTING.md`.
 
 ## Website
 
