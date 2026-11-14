@@ -101,3 +101,16 @@ The project name and app icon are not covered by that license; see `TRADEMARKS.m
 The marketing site lives in `docs/`: one HTML file, Tailwind from its CDN, no build step. To publish it, open the repository's Settings → Pages, choose "Deploy from a branch", and pick the `main` branch and the `/docs` folder. For a custom domain, set it in the same screen (GitHub adds a `docs/CNAME` file).
 
 Set the repository URL once, in the `REPO` constant at the bottom of `docs/index.html`. Screenshots are real app renders made with `--snapshot ... --scale 2`.
+
+## Releasing
+
+Push a version tag and GitHub Actions does the rest (`.github/workflows/release.yml`):
+
+```sh
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The workflow runs the tests, builds a universal app stamped with the version, and publishes `VisDiff-1.0.0.zip` with its SHA-256 as a GitHub release. You can also start it by hand from the Actions tab.
+
+Builds are ad-hoc signed by default, so macOS asks users to allow the app on first launch; the release notes explain how. To ship a signed and notarized app instead, add the Developer ID secrets listed at the top of the workflow file.

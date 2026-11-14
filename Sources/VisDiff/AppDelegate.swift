@@ -110,6 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return
         }
         let wc = ComparisonWindowController(left: a, right: b, kind: isDirA.boolValue ? .folders : .files)
+        RecentComparisons.add(left: a, right: b, isFolder: isDirA.boolValue)
         wc.onClose = { [weak self] c in self?.comparisons.removeAll { $0 === c } }
         wc.onDrop = { [weak self, weak wc] urls in
             guard urls.count >= 2 else { return }

@@ -20,5 +20,17 @@ cp "$BIN_DIR/VisDiff" "$APP/Contents/MacOS/VisDiff"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
-codesign --force --sign - "$APP" >/dev/null 2>&1
+
+# Optional version stamping, e.g. VERSION=1.2.0 BUILD=42 (used by the release workflow).
+if [[ -n "${VERSION:-}" ]]; then
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${BUILD:-1}" "$APP/Contents/Info.plist"
+fi
+
+# Ad-hoc signature by default; SIGN_IDENTITY="Developer ID Application: …" signs for notarization.
+if [[ -n "${SIGN_IDENTITY:-}" ]]; then
+    codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP"
+else
+    codesign --force --sign - "$APP" >/dev/null 2>&1
+fi
 echo "Built $APP"

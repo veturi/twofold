@@ -7,6 +7,8 @@ final class WelcomeWindowController: NSWindowController {
     private let wellB = DropWell(letter: "B")
     private let compareButton = NSButton(title: "Compare", target: nil, action: nil)
     private let hint = NSTextField(labelWithString: "")
+    private let recentList = NSStackView()
+    private let recentSection = NSStackView()
     var onCompare: ((URL, URL) -> Void)?
 
     init(prefill: URL?) {
@@ -41,12 +43,32 @@ final class WelcomeWindowController: NSWindowController {
         wells.distribution = .fillEqually
         let footer = NSStackView(views: [hint, compareButton])
         footer.spacing = 12
-        let stack = NSStackView(views: [title, subtitle, wells, footer])
+        let recentLabel = NSTextField(labelWithString: "Recent")
+        recentLabel.font = .systemFont(ofSize: 12, weight: .semibold)
+        recentLabel.textColor = Theme.secondaryText
+        let clear = NSButton(title: "Clear", target: self, action: #selector(clearRecents))
+        clear.isBordered = false
+        clear.font = .systemFont(ofSize: 12)
+        clear.contentTintColor = Theme.accent
+        let recentHeader = NSStackView(views: [recentLabel, NSView(), clear])
+        recentHeader.edgeInsets = NSEdgeInsets(top: 0, left: 10, bottom: 0, right: 10)
+        recentList.orientation = .vertical
+        recentList.spacing = 2
+        recentSection.orientation = .vertical
+        recentSection.spacing = 6
+        recentSection.addArrangedSubview(recentHeader)
+        recentSection.addArrangedSubview(recentList)
+        for v in [recentHeader, recentList] as [NSView] {
+            v.widthAnchor.constraint(equalTo: recentSection.widthAnchor).isActive = true
+        }
+
+        let stack = NSStackView(views: [title, subtitle, wells, footer, recentSection])
         stack.orientation = .vertical
         stack.alignment = .centerX
         stack.spacing = 6
         stack.setCustomSpacing(24, after: subtitle)
         stack.setCustomSpacing(20, after: wells)
+        stack.setCustomSpacing(28, after: footer)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         let root = DropView()
@@ -56,6 +78,7 @@ final class WelcomeWindowController: NSWindowController {
             stack.centerYAnchor.constraint(equalTo: root.centerYAnchor, constant: 10),
             wells.widthAnchor.constraint(equalToConstant: 560),
             wells.heightAnchor.constraint(equalToConstant: 190),
+            recentSection.widthAnchor.constraint(equalTo: wells.widthAnchor),
         ])
         root.onDrop = { [weak self] urls in self?.fill(urls) }
         window.contentView = root
@@ -66,10 +89,34 @@ final class WelcomeWindowController: NSWindowController {
         }
         wellA.url = prefill
         update()
+        reloadRecents()
         window.center()
     }
 
     required init?(coder: NSCoder) { fatalError() }
+
+    private func reloadRecents() {
+        let items = RecentComparisons.available
+        recentList.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        for item in items {
+            let row = RecentRow(item) { [weak self] r in self?.onCompare?(r.leftURL, r.rightURL) }
+            recentList.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: recentList.widthAnchor).isActive = true
+        }
+        recentSection.isHidden = items.isEmpty
+        let height: CGFloat = items.isEmpty ? 400 : 440 + CGFloat(items.count) * 46
+        guard let window else { return }
+        var frame = window.frame
+        let newFrame = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: 640, height: height))
+        frame.origin.y += frame.height - newFrame.height
+        frame.size = newFrame.size
+        window.setFrame(frame, display: true, animate: window.isVisible)
+    }
+
+    @objc private func clearRecents() {
+        RecentComparisons.clear()
+        reloadRecents()
+    }
 
     private func fill(_ urls: [URL]) {
         if urls.count >= 2 {
