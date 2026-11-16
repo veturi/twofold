@@ -91,11 +91,11 @@
           { "@type": "Question", "name": "Can Twofold compare images?",
             "acceptedAnswer": { "@type": "Answer", "text": "Yes. Open two images, or select one in a folder comparison, and Twofold shows them side by side, as an overlay you can fade from one version to the other, or as a difference view that highlights every changed pixel and outlines each changed region. It reads PNG, JPEG, HEIC, TIFF, GIF, WebP and the other formats macOS can decode." } },
           { "@type": "Question", "name": "How do I use Twofold as my git difftool?",
-            "acceptedAnswer": { "@type": "Answer", "text": "Install the twofold command with make install, then run: git config --global diff.tool twofold; git config --global difftool.twofold.cmd 'twofold --wait \"$LOCAL\" \"$REMOTE\"'; git config --global difftool.prompt false. Use git difftool --dir-diff to compare whole trees in one window." } },
+            "acceptedAnswer": { "@type": "Answer", "text": "Open Twofold, choose Twofold › Git Integration… and turn on Diff tool. Twofold writes the settings to your global Git configuration for you. To set it up by hand instead, install the twofold command with make install, then run: git config --global diff.tool twofold; git config --global difftool.twofold.cmd 'twofold --wait \"$LOCAL\" \"$REMOTE\"'; git config --global difftool.prompt false. Use git difftool --dir-diff to compare whole trees in one window." } },
           { "@type": "Question", "name": "Can Twofold merge or edit files?",
             "acceptedAnswer": { "@type": "Answer", "text": "Yes. You can type, paste and delete in either pane, copy any change from one side to the other, undo, and save; the rest of the file is written back exactly as it was. Twofold also does three-way merges and works as git mergetool for resolving conflicts." } },
           { "@type": "Question", "name": "How do I use Twofold as my git mergetool?",
-            "acceptedAnswer": { "@type": "Answer", "text": "Install the twofold command with make install, then run: git config --global merge.tool twofold; git config --global mergetool.twofold.cmd 'twofold --wait --base \"$BASE\" --output \"$MERGED\" \"$LOCAL\" \"$REMOTE\"'; git config --global mergetool.twofold.trustExitCode false. After a conflict, git mergetool opens each conflicted file with your version and theirs side by side and the result below. Changes only one side made are already merged; pick a side for each conflict or edit the result, then save and close the window." } },
+            "acceptedAnswer": { "@type": "Answer", "text": "Open Twofold, choose Twofold › Git Integration… and turn on Merge tool. Twofold writes the settings to your global Git configuration for you. To set it up by hand instead, install the twofold command with make install, then run: git config --global merge.tool twofold; git config --global mergetool.twofold.cmd 'twofold --wait --base \"$BASE\" --output \"$MERGED\" \"$LOCAL\" \"$REMOTE\"'; git config --global mergetool.twofold.trustExitCode false. After a conflict, git mergetool opens each conflicted file with your version and theirs side by side and the result below. Changes only one side made are already merged; pick a side for each conflict or edit the result, then save and close the window." } },
           { "@type": "Question", "name": "Is Twofold a good Kaleidoscope alternative?",
             "acceptedAnswer": { "@type": "Answer", "text": "Yes, for most people. Twofold is native, polished and free, while Kaleidoscope is sold as a subscription. Twofold compares text, images and folders, edits files, and resolves git conflicts with a three-way merge. Kaleidoscope's merge tools are older and more complete." } },
           { "@type": "Question", "name": "Does Twofold collect any data?",
@@ -527,6 +527,10 @@ twofold old.swift new.swift</code></pre>
             <button data-copy="install-cmd" class="absolute right-3 top-3 rounded-md bg-white/10 px-2.5 py-1 font-sans text-xs text-zinc-300 hover:bg-white/20">Copy</button>
           </div>
         </div>
+        <div class="rounded-xl border border-zinc-200 p-5 dark:border-white/10">
+          <div class="font-semibold">Use it from Git: two switches, no commands</div>
+          <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Open Twofold and choose <strong>Twofold › Git Integration…</strong>. Turn on <strong>Diff tool</strong> for <code class="font-mono">git difftool</code> and <strong>Merge tool</strong> for <code class="font-mono">git mergetool</code>. Twofold writes the settings to your global Git configuration, and turning a switch off removes them. The commands below do the same by hand.</p>
+        </div>
         <div>
           <div class="mb-2 text-sm font-medium text-zinc-500">Use it as your git difftool</div>
           <div class="relative rounded-xl bg-zinc-900 p-5 font-mono text-sm text-zinc-100 dark:bg-black/60">
@@ -581,7 +585,7 @@ git config --global mergetool.twofold.trustExitCode false</code></pre>
           </details>
           <details class="group py-5">
             <summary class="cursor-pointer list-none text-lg font-semibold">How do I use Twofold as my git difftool?</summary>
-            <p class="mt-3 text-zinc-600 dark:text-zinc-400">Install the <code class="font-mono text-sm">twofold</code> command with <code class="font-mono text-sm">make install</code>, then run the three <code class="font-mono text-sm">git config</code> lines in <a href="#install" class="text-brand hover:underline">Get it</a>. Use <code class="font-mono text-sm">git difftool --dir-diff</code> to compare whole trees in one window.</p>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">Open Twofold, choose Twofold › Git Integration… and turn on Diff tool. Twofold writes the settings to your global Git configuration for you. To set it up by hand instead, install the <code class="font-mono text-sm">twofold</code> command with <code class="font-mono text-sm">make install</code>, then run the three <code class="font-mono text-sm">git config</code> lines in <a href="#install" class="text-brand hover:underline">Get it</a>. Use <code class="font-mono text-sm">git difftool --dir-diff</code> to compare whole trees in one window.</p>
           </details>
           <details class="group py-5">
             <summary class="cursor-pointer list-none text-lg font-semibold">Can Twofold merge or edit files?</summary>
@@ -589,7 +593,7 @@ git config --global mergetool.twofold.trustExitCode false</code></pre>
           </details>
           <details class="group py-5">
             <summary class="cursor-pointer list-none text-lg font-semibold">How do I use Twofold as my git mergetool?</summary>
-            <p class="mt-3 text-zinc-600 dark:text-zinc-400">Install the <code class="font-mono text-sm">twofold</code> command with <code class="font-mono text-sm">make install</code>, then run the three <code class="font-mono text-sm">git config</code> lines for the mergetool in <a href="#install" class="text-brand hover:underline">Get it</a>. After a conflict, <code class="font-mono text-sm">git mergetool</code> opens each conflicted file with your version and theirs side by side and the result below. Changes only one side made are already merged; pick a side for each conflict or edit the result, then save and close the window.</p>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">Open Twofold, choose Twofold › Git Integration… and turn on Merge tool. Twofold writes the settings to your global Git configuration for you. To set it up by hand instead, install the <code class="font-mono text-sm">twofold</code> command with <code class="font-mono text-sm">make install</code>, then run the three <code class="font-mono text-sm">git config</code> lines for the mergetool in <a href="#install" class="text-brand hover:underline">Get it</a>. After a conflict, <code class="font-mono text-sm">git mergetool</code> opens each conflicted file with your version and theirs side by side and the result below. Changes only one side made are already merged; pick a side for each conflict or edit the result, then save and close the window.</p>
           </details>
           <details class="group py-5">
             <summary class="cursor-pointer list-none text-lg font-semibold">Is Twofold a good Kaleidoscope alternative?</summary>

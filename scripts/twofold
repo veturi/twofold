@@ -10,6 +10,11 @@ set -euo pipefail
 
 DEFAULT_APP=""
 APP="${TWOFOLD_APP:-$DEFAULT_APP}"
+# The copy inside an app bundle (Contents/Resources) launches that app.
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -z "$APP" && "$SELF_DIR" == *.app/Contents/Resources ]]; then
+    APP="${SELF_DIR%/Contents/Resources}"
+fi
 if [[ -z "$APP" ]]; then
     for candidate in "/Applications/Twofold.app" "$HOME/Applications/Twofold.app"; do
         if [[ -d "$candidate" ]]; then APP="$candidate"; break; fi

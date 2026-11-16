@@ -10,10 +10,11 @@ final class WelcomeWindowController: NSWindowController {
     private let recentList = NSStackView()
     private let recentSection = NSStackView()
     var onCompare: ((URL, URL) -> Void)?
+    var onGitSetup: (() -> Void)?
 
     init(prefill: URL?) {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 640, height: 400),
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 426),
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
@@ -71,11 +72,20 @@ final class WelcomeWindowController: NSWindowController {
         stack.setCustomSpacing(28, after: footer)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
+        let git = NSButton(title: "Use Twofold from Git…", target: self, action: #selector(gitSetup))
+        git.isBordered = false
+        git.font = .systemFont(ofSize: 12)
+        git.contentTintColor = Theme.accent
+        git.translatesAutoresizingMaskIntoConstraints = false
+
         let root = DropView()
         root.addSubview(stack)
+        root.addSubview(git)
         NSLayoutConstraint.activate([
+            git.centerXAnchor.constraint(equalTo: root.centerXAnchor),
+            git.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -14),
             stack.centerXAnchor.constraint(equalTo: root.centerXAnchor),
-            stack.centerYAnchor.constraint(equalTo: root.centerYAnchor, constant: 10),
+            stack.centerYAnchor.constraint(equalTo: root.centerYAnchor, constant: -3),
             wells.widthAnchor.constraint(equalToConstant: 560),
             wells.heightAnchor.constraint(equalToConstant: 190),
             recentSection.widthAnchor.constraint(equalTo: wells.widthAnchor),
@@ -104,7 +114,7 @@ final class WelcomeWindowController: NSWindowController {
             row.widthAnchor.constraint(equalTo: recentList.widthAnchor).isActive = true
         }
         recentSection.isHidden = items.isEmpty
-        let height: CGFloat = items.isEmpty ? 400 : 440 + CGFloat(items.count) * 46
+        let height: CGFloat = items.isEmpty ? 426 : 466 + CGFloat(items.count) * 46
         guard let window else { return }
         var frame = window.frame
         let newFrame = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: 640, height: height))
@@ -112,6 +122,8 @@ final class WelcomeWindowController: NSWindowController {
         frame.size = newFrame.size
         window.setFrame(frame, display: true, animate: window.isVisible)
     }
+
+    @objc private func gitSetup() { onGitSetup?() }
 
     @objc private func clearRecents() {
         RecentComparisons.clear()

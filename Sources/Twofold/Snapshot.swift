@@ -12,6 +12,10 @@ enum Snapshot {
     static func run(_ o: LaunchOptions) {
         guard let out = o.snapshot else { exit(2) }
         NSApp.setActivationPolicy(.accessory)
+        if let setup = o.gitSetup {
+            runGitSetup(setup, o, to: out)
+            return
+        }
         if o.paths.count < 2 {
             let welcome = WelcomeWindowController(prefill: o.paths.first.map { URL(fileURLWithPath: $0) })
             if o.appearance == .dark { welcome.window?.appearance = NSAppearance(named: .darkAqua) }
@@ -134,6 +138,29 @@ enum Snapshot {
             window.layoutIfNeeded()
             try? await Task.sleep(for: .milliseconds(100))
             capture(window, to: out, scale: o.scale)
+            exit(0)
+        }
+    }
+
+    /// The Git Integration window. `--git-setup diff=on,merge=off` flips those switches first, and
+    /// `--git-setup show` only shows the current state. Set `GIT_CONFIG_GLOBAL` to try it on a scratch file.
+    private static func runGitSetup(_ setup: String, _ o: LaunchOptions, to out: String) {
+        let wc = GitSetupWindowController()
+        switch o.appearance {
+        case .dark?: wc.window?.appearance = NSAppearance(named: .darkAqua)
+        case .light?: wc.window?.appearance = NSAppearance(named: .aqua)
+        default: break
+        }
+        Task {
+            await wc.refresh()
+            for item in setup.split(separator: ",") {
+                let parts = item.split(separator: "=")
+                guard parts.count == 2, parts[0] == "diff" || parts[0] == "merge" else { continue }
+                await wc.set(parts[0] == "diff" ? .diff : .merge, on: parts[1] == "on")
+            }
+            print("diff: \(wc.states[.diff].map { "\($0)" } ?? "unavailable")  merge: \(wc.states[.merge].map { "\($0)" } ?? "unavailable")")
+            wc.window?.layoutIfNeeded()
+            capture(wc.window!, to: out, scale: o.scale)
             exit(0)
         }
     }

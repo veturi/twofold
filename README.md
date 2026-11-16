@@ -48,6 +48,12 @@ twofold a.swift b.swift
 twofold --wait a.swift b.swift   # block until the window closes
 ```
 
+### With git
+
+Open Twofold, choose **Twofold › Git Integration…** (or **Use Twofold from Git…** in the start window) and turn on **Diff tool**, **Merge tool** or both. Twofold writes the settings to your global Git configuration, pointing Git at the launcher inside the app, so this works without `make install` and without anything on your `PATH`. Turning a switch off removes the settings again. If you move the app, open the window once more and click **Use This Copy of Twofold**.
+
+The two sections below set up the same thing by hand, using the `twofold` command on your `PATH`.
+
 ### As git difftool
 
 ```sh

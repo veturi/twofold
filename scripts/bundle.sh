@@ -19,6 +19,9 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/Twofold" "$APP/Contents/MacOS/Twofold"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# The command line launcher. From here it finds its own app, so git can be pointed straight at it.
+cp scripts/twofold "$APP/Contents/Resources/twofold"
+chmod 755 "$APP/Contents/Resources/twofold"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
 # Optional version stamping, e.g. VERSION=1.2.0 BUILD=42 (used by the release workflow).

@@ -45,7 +45,8 @@ Key facts:
 
 - Download the zip from GitHub releases, unzip, and move Twofold.app to Applications. Release builds are not notarized yet, so macOS asks you to allow the first launch in System Settings → Privacy & Security.
 - Or build from source: `git clone https://github.com/veturi/twofold.git && cd twofold && make start` (needs the Xcode Command Line Tools).
-- Use as git difftool:
+- Use from git, the easy way: in the app choose Twofold › Git Integration… and turn on "Diff tool" (git difftool) and "Merge tool" (git mergetool). Twofold writes the settings to the global Git configuration itself; no terminal commands or PATH setup are needed, and turning a switch off removes them.
+- Use as git difftool, by hand (needs the `twofold` command on the PATH):
 
 ```
 git config --global diff.tool twofold

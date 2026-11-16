@@ -23,6 +23,8 @@ struct LaunchOptions {
     var output: String?
     /// Snapshot runs only: take this side ("left", "right" or "both") for the current change of a merge.
     var use: String?
+    /// Snapshot runs only: show the Git Integration window, after applying e.g. "diff=on,merge=off" ("show" changes nothing).
+    var gitSetup: String?
     var size = CGSize(width: 1360, height: 860)
     var change: Int?
     var fontSize: CGFloat?
@@ -52,6 +54,7 @@ struct LaunchOptions {
             case "--output": o.output = next().map { URL(fileURLWithPath: $0).standardizedFileURL.path }
             case "--use": o.use = next()
             case "--merge": break
+            case "--git-setup": o.gitSetup = next()
             case "--save": o.save = true
             case "--undo": o.undo = true
             case "--caret":
@@ -91,6 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var comparisons: [ComparisonWindowController] = []
     private var merges: [MergeWindowController] = []
     private var welcome: WelcomeWindowController?
+    private var gitSetup: GitSetupWindowController?
     private var launched = false
     private var openedFromEvent = false
 
@@ -227,6 +231,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         let w = WelcomeWindowController(prefill: prefill)
         w.onCompare = { [weak self] a, b in self?.openComparison(a, b) }
+        w.onGitSetup = { [weak self] in self?.showGitSetup(nil) }
         welcome = w
         w.showWindow(nil)
     }
@@ -257,6 +262,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     // MARK: Actions
 
     @objc func newComparison(_ sender: Any?) { showWelcome(prefill: nil) }
+
+    @objc func showGitSetup(_ sender: Any?) {
+        if gitSetup == nil {
+            let w = GitSetupWindowController()
+            w.onClose = { [weak self] in self?.gitSetup = nil }
+            gitSetup = w
+        }
+        gitSetup?.showWindow(nil)
+        // Read again every time: the configuration may have been changed in a terminal meanwhile.
+        Task { await gitSetup?.refresh() }
+    }
     @objc func setLayoutBlocks(_ sender: Any?) { Preferences.shared.layout = .blocks }
     @objc func setLayoutFluid(_ sender: Any?) { Preferences.shared.layout = .fluid }
     /// Sent by the View menu (the item's tag) and by the bottom bar's segmented control.
@@ -318,6 +334,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         _ = submenu("Twofold", [
             item("About Twofold", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
+            .separator(),
+            item("Git Integration…", #selector(showGitSetup(_:))),
             .separator(),
             item("Hide Twofold", #selector(NSApplication.hide(_:)), "h"),
             item("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),
