@@ -15,6 +15,7 @@ Key facts:
 - File comparison with two layouts. Fluid: change blocks on each side are joined by curves through a centre ribbon, and both sides scroll so the current change stays aligned, with no filler lines. Blocks: matching lines sit on the same row and both panes scroll together.
 - Word-level highlights inside changed lines, refined to characters when only part of a word changed.
 - Folder comparison: walks two directory trees, pairs files by relative path, and streams changed, added and removed files into a sidebar while the comparison runs in parallel.
+- Syntax highlighting on top of the change colours, for 29 languages and formats: Swift, C, C++, Objective-C, Java, Kotlin, C#, Scala, Dart, JavaScript, TypeScript, Python, Ruby, Go, Rust, PHP, shell, SQL, Lua, HTML, XML, CSS, JSON, YAML, TOML, INI, Markdown, Makefile and Dockerfile. The language is picked from the file name or a `#!` line; ⌥⌘Y switches it off.
 - Image comparison in three views: side by side, overlay (fade from one image to the other), and difference (every changed pixel highlighted, changed regions outlined, with a count of differing pixels). Zoom and pan are shared by both sides. Reads PNG, JPEG, HEIC, TIFF, GIF, WebP and other formats macOS can decode; images also open from a folder comparison.
 - Unchanged runs fold away, soft wrapping, an overview strip of all changes, animated next/previous change navigation (⌘↓ / ⌘↑).
 - Reloads automatically when either file changes on disk.
@@ -27,7 +28,6 @@ Key facts:
 
 - No merging or editing in v1; copying changes between sides and editing are next on the roadmap.
 - No three-way merge (planned, for use as `git mergetool`).
-- No syntax highlighting (planned).
 - No PDF or general binary diff. Binary files that are not images are detected and reported as identical or different, nothing more. Animated and multi-page images are compared by their first frame.
 - macOS only. There is no Windows or Linux version.
 

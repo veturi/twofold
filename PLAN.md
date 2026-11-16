@@ -2,7 +2,7 @@
 
 A native, open-source visual diff tool for macOS. Version 1 does two things and does them beautifully: compare two text files, and compare two folders.
 
-Status: version 1 implemented. See README.md for usage. One addition beyond this plan: modified blocks with unequal line counts are split into similar line pairs and plain additions or removals, matching how the reference screenshots group changes. Image diff (side by side, overlay and pixel difference) has been added since; see README.md.
+Status: version 1 implemented. See README.md for usage. One addition beyond this plan: modified blocks with unequal line counts are split into similar line pairs and plain additions or removals, matching how the reference screenshots group changes. Image diff (side by side, overlay and pixel difference) and syntax highlighting have been added since; see README.md.
 
 ## 1. Scope
 

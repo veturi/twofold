@@ -298,6 +298,171 @@ final class ImageDiffTests: XCTestCase {
     }
 }
 
+final class SyntaxTests: XCTestCase {
+    /// The highlighted pieces of each line as "kind:text".
+    private func tokens(_ language: String, _ text: String) -> [[String]] {
+        let lines = text.components(separatedBy: "\n")
+        let map = SyntaxLanguage.named(language)!.highlight(lines)
+        XCTAssertEqual(map.lineCount, lines.count)
+        return lines.indices.map { i in
+            let ns = lines[i] as NSString
+            var last = 0
+            return map[i].map { span in
+                XCTAssertGreaterThanOrEqual(span.range.lowerBound, last, "spans overlap in \(lines[i])")
+                XCTAssertLessThanOrEqual(span.range.upperBound, ns.length)
+                last = span.range.upperBound
+                return "\(span.kind):\(ns.substring(with: NSRange(span.range)))"
+            }
+        }
+    }
+
+    func testSwift() {
+        let t = tokens("swift", #"""
+        @MainActor final class Foo: Bar { // note
+            let n = 0x1F + 2.5e-3
+            func go(_ s: String) -> Int { print("a \" b"); return URL.max }
+        }
+        """#)
+        XCTAssertEqual(t[0], ["attribute:@MainActor", "keyword:final", "keyword:class", "type:Foo", "type:Bar", "comment:// note"])
+        XCTAssertEqual(t[1], ["keyword:let", "number:0x1F", "number:2.5e-3"])
+        XCTAssertEqual(t[2], ["keyword:func", "function:go", "type:String", "type:Int", "function:print", #"string:"a \" b""#, "keyword:return", "type:URL"])
+        // Outside Swift, all-capital names are constants and stay plain.
+        XCTAssertEqual(tokens("java", "int n = MAX_SIZE + Limit.of(x);")[0], ["keyword:int", "type:Limit", "function:of"])
+    }
+
+    func testBlockCommentsAndStringsSpanLines() {
+        let t = tokens("swift", "a /* one\n /* two */ still\n done */ let x = \"\"\"\n  text \"quoted\"\n  \"\"\" + y")
+        XCTAssertEqual(t[0], ["comment:/* one"])
+        XCTAssertEqual(t[1], ["comment: /* two */ still"])
+        XCTAssertEqual(t[2], ["comment: done */", "keyword:let", "string:\"\"\""])
+        XCTAssertEqual(t[3], ["string:  text \"quoted\""])
+        XCTAssertEqual(t[4], ["string:  \"\"\""])
+        // C comments do not nest, and an unterminated ordinary string ends with its line.
+        let c = tokens("c", "/* a /* b */ int x; char *s = \"open\nint y;")
+        XCTAssertEqual(c[0], ["comment:/* a /* b */", "keyword:int", "keyword:char", "string:\"open"])
+        XCTAssertEqual(c[1], ["keyword:int"])
+    }
+
+    func testOffsetsAreUTF16() {
+        let t = tokens("swift", "let s = \"👍🏽\" // é")
+        XCTAssertEqual(t[0], ["keyword:let", "string:\"👍🏽\"", "comment:// é"])
+    }
+
+    func testCPreprocessorAndRust() {
+        XCTAssertEqual(tokens("c", "#include <stdio.h>\nsize_t n = sizeof(x);")[0], ["attribute:#include", "string:<stdio.h>"])
+        let r = tokens("rust", "#[derive(Debug)]\nfn f(x: &'a str) -> char { println!(\"hi\"); 'x' }")
+        XCTAssertEqual(r[0], ["attribute:#[derive(Debug)]"])
+        XCTAssertEqual(r[1], ["keyword:fn", "function:f", "type:str", "type:char", "function:println!", "string:\"hi\"", "string:'x'"])
+    }
+
+    func testJavaScriptRegexAndTemplates() {
+        let t = tokens("javascript", "const re = /a\\/[/]b/gi, half = total / 2 / n;\nconst s = `line\n${x}`; // done")
+        XCTAssertEqual(t[0], ["keyword:const", "string:/a\\/[/]b/gi", "number:2"])
+        XCTAssertEqual(t[1], ["keyword:const", "string:`line"])
+        XCTAssertEqual(t[2], ["string:${x}`", "comment:// done"])
+    }
+
+    func testPythonAndShell() {
+        let p = tokens("python", "@cache\ndef f(x: int) -> str:  # why\n    return '''a\nb''' if x else None")
+        XCTAssertEqual(p[0], ["attribute:@cache"])
+        XCTAssertEqual(p[1], ["keyword:def", "function:f", "type:int", "type:str", "comment:# why"])
+        XCTAssertEqual(p[2], ["keyword:return", "string:'''a"])
+        XCTAssertEqual(p[3], ["string:b'''", "keyword:if", "keyword:else", "keyword:None"])
+        let s = tokens("shell", "if [ $# -gt 0 ]; then echo \"${NAME}\" $1 # note")
+        XCTAssertEqual(s[0], ["keyword:if", "property:$#", "number:0", "keyword:then", "string:\"${NAME}\"", "property:$1", "comment:# note"])
+    }
+
+    func testSQLIsCaseInsensitive() {
+        XCTAssertEqual(tokens("sql", "Select id FROM t WHERE n = 'it''s' -- c")[0],
+                       ["keyword:Select", "keyword:FROM", "keyword:WHERE", "string:'it'", "string:'s'", "comment:-- c"])
+    }
+
+    func testJSONAndTOML() {
+        XCTAssertEqual(tokens("json", #"{ "name": "x", "n": [1.5, true] }"#)[0],
+                       ["property:\"name\"", "string:\"x\"", "property:\"n\"", "number:1.5", "keyword:true"])
+        let t = tokens("toml", "[package]\nname = \"twofold\" # c\ndebug = true")
+        XCTAssertEqual(t, [["tag:[package]"], ["property:name", "string:\"twofold\"", "comment:# c"], ["property:debug", "keyword:true"]])
+    }
+
+    func testYAML() {
+        let t = tokens("yaml", "# top\nname: \"a: b\"  # c\n- port: 8080\n  on: true\nrun: |\n  echo: hi\n\n  more\nnext: &a plain text")
+        XCTAssertEqual(t[0], ["comment:# top"])
+        XCTAssertEqual(t[1], ["property:name", "string:\"a: b\"", "comment:# c"])
+        XCTAssertEqual(t[2], ["property:port", "number:8080"])
+        XCTAssertEqual(t[3], ["property:on", "keyword:true"])
+        XCTAssertEqual(t[4], ["property:run", "keyword:|"])
+        XCTAssertEqual(t[5], ["string:echo: hi"])
+        XCTAssertEqual(t[6], [])
+        XCTAssertEqual(t[7], ["string:more"])
+        XCTAssertEqual(t[8], ["property:next", "attribute:&a"])
+    }
+
+    func testHTMLWithEmbeddedScriptAndStyle() {
+        let t = tokens("html", """
+        <!DOCTYPE html>
+        <div class="a" hidden>x &amp; y</div> <!-- c
+        still --> <br/>
+        <script type="module">
+          const n = 1; // <b>
+        </script>
+        <style>p.note { color: #fff; }</style><p>
+        """)
+        XCTAssertEqual(t[0], ["keyword:!DOCTYPE", "attribute:html"])
+        XCTAssertEqual(t[1], ["tag:div", "attribute:class", "string:\"a\"", "attribute:hidden", "number:&amp;", "tag:div", "comment:<!-- c"])
+        XCTAssertEqual(t[2], ["comment:still -->", "tag:br"])
+        XCTAssertEqual(t[3], ["tag:script", "attribute:type", "string:\"module\""])
+        XCTAssertEqual(t[4], ["keyword:const", "number:1", "comment:// <b>"])
+        XCTAssertEqual(t[5], ["tag:script"])
+        XCTAssertEqual(t[6], ["tag:style", "tag:p", "tag:.note", "property:color", "number:#fff", "tag:style", "tag:p"])
+    }
+
+    func testCSS() {
+        let t = tokens("css", "@media (min-width: 600px) {\n  a:hover, #main .x { margin: -0.5em auto; background: url(\"a.png\") #a1b2c3 !important; }\n  --gap: 4px; /* c */\n}")
+        XCTAssertEqual(t[0], ["keyword:@media", "property:min-width", "number:600px"])
+        XCTAssertEqual(t[1], ["tag:a", "tag:hover", "tag:#main", "tag:.x", "property:margin", "number:-0.5em", "property:background",
+                              "function:url", "string:\"a.png\"", "number:#a1b2c3", "keyword:!important"])
+        XCTAssertEqual(t[2], ["property:--gap", "number:4px", "comment:/* c */"])
+    }
+
+    func testMarkdown() {
+        let t = tokens("markdown", "# Title\n- use `code` and [a link](http://x)\n```swift\nlet # not a heading\n```\n> quote")
+        XCTAssertEqual(t, [["keyword:# Title"], ["number:-", "string:`code`", "property:[a link]", "comment:(http://x)"],
+                           ["comment:```swift"], [], ["comment:```"], ["comment:> quote"]])
+    }
+
+    func testDetection() {
+        XCTAssertEqual(SyntaxLanguage.detect(fileName: "Main.SWIFT")?.name, "Swift")
+        XCTAssertEqual(SyntaxLanguage.detect(fileName: "Makefile")?.name, "Makefile")
+        XCTAssertEqual(SyntaxLanguage.detect(fileName: "Dockerfile.prod")?.name, "Dockerfile")
+        XCTAssertEqual(SyntaxLanguage.detect(fileName: "run", firstLine: "#!/usr/bin/env python3")?.name, "Python")
+        XCTAssertEqual(SyntaxLanguage.detect(fileName: "run", firstLine: "#!/bin/sh")?.name, "Shell")
+        XCTAssertNil(SyntaxLanguage.detect(fileName: "notes.txt", firstLine: "hello"))
+        // Every extension and file name points at a language that exists.
+        for id in Set(Languages.byExtension.values).union(Languages.byName.values).union(Languages.shebangs.map(\.1)) {
+            XCTAssertNotNil(SyntaxLanguage.named(id), id)
+        }
+    }
+
+    /// Whatever the input, spans stay ordered and inside their line, and the lexer terminates.
+    func testRandomInputKeepsSpansValid() {
+        var rng = SystemRandomNumberGenerator()
+        let pieces = ["\"", "'", "`", "/*", "*/", "//", "#", "<", ">", "</script", "<!--", "-->", "{", "}", ":", " ", "\\", "$", "@",
+                      "a", "Foo", "12", "=", "[", "]", "(", ")", "|", "-", "\"\"\"", "é", "👍", "/", ";", "&amp;", "```", "<style>", "!"]
+        for id in Languages.names.keys.sorted() {
+            let lines = (0..<200).map { _ in (0..<Int.random(in: 0...14, using: &rng)).map { _ in pieces.randomElement(using: &rng)! }.joined() }
+            let map = SyntaxLanguage.named(id)!.highlight(lines)
+            for (i, line) in lines.enumerated() {
+                var last = 0
+                for span in map[i] {
+                    XCTAssertTrue(span.range.lowerBound >= last && span.range.upperBound <= line.utf16.count && !span.range.isEmpty,
+                                  "\(id): bad span \(span.range) in \(line.debugDescription)")
+                    last = span.range.upperBound
+                }
+            }
+        }
+    }
+}
+
 final class FolderTests: XCTestCase {
     func testFolderComparison() async throws {
         let fm = FileManager.default
@@ -337,6 +502,18 @@ final class FolderTests: XCTestCase {
 }
 
 final class BenchmarkTests: XCTestCase {
+    func testSyntaxHighlightPerformance() {
+        let unit = ["/// Doc comment for item", "public func item(_ index: Int, named name: String = \"x\") -> [String: Int]? {",
+                    "    guard index > 0x10, let value = cache[name] else { return nil } // early out", "    return [\"count\": value * 2 + 1]", "}", ""]
+        let lines = (0..<100_000).map { unit[$0 % unit.count] }
+        let swift = SyntaxLanguage.named("swift")!
+        let start = DispatchTime.now().uptimeNanoseconds
+        let map = swift.highlight(lines)
+        let ms = Double(DispatchTime.now().uptimeNanoseconds - start) / 1e6
+        print(String(format: "BENCH syntax 100k lines: %.1f ms", ms))
+        XCTAssertEqual(map.lineCount, lines.count)
+    }
+
     func testLargeDiffPerformance() {
         var rng = DiffTests.LCG(state: 1)
         let left = (0..<100_000).map { "let value\($0) = compute(\($0 % 977), \(rng.int(1000)))" }

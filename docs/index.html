@@ -48,6 +48,7 @@
         "featureList": [
           "Side-by-side file comparison with Fluid and Blocks layouts",
           "Word- and character-level highlights inside changed lines",
+          "Syntax highlighting for 29 languages and formats",
           "Folder comparison with a sidebar of changed, added and removed files",
           "Image comparison with side-by-side, overlay and pixel difference views",
           "Works as git difftool, including whole-tree comparisons",
@@ -81,6 +82,8 @@
             "acceptedAnswer": { "@type": "Answer", "text": "Twofold needs macOS 26 or later and runs natively on both Apple silicon and Intel Macs." } },
           { "@type": "Question", "name": "Can Twofold compare folders?",
             "acceptedAnswer": { "@type": "Answer", "text": "Yes. Open two folders and Twofold lists every changed, added and removed file in a sidebar grouped by directory, streaming results while the comparison runs in parallel. Select a file to see its diff." } },
+          { "@type": "Question", "name": "Does Twofold have syntax highlighting?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Code is coloured by language on top of the change colours, for 29 languages and formats including Swift, C and C++, JavaScript and TypeScript, Python, Go, Rust, HTML, CSS, JSON, YAML and Markdown. The language is picked from the file name, and you can switch the colours off with Option-Command-Y." } },
           { "@type": "Question", "name": "Can Twofold compare images?",
             "acceptedAnswer": { "@type": "Answer", "text": "Yes. Open two images, or select one in a folder comparison, and Twofold shows them side by side, as an overlay you can fade from one version to the other, or as a difference view that highlights every changed pixel and outlines each changed region. It reads PNG, JPEG, HEIC, TIFF, GIF, WebP and the other formats macOS can decode." } },
           { "@type": "Question", "name": "How do I use Twofold as my git difftool?",
@@ -285,6 +288,7 @@
 
       <ul class="mx-auto mt-16 grid max-w-4xl gap-x-10 gap-y-3 text-zinc-600 sm:grid-cols-2 dark:text-zinc-400">
         <li class="flex gap-3"><span class="text-brand">✓</span> Image diff: side by side, overlay and pixel difference</li>
+        <li class="flex gap-3"><span class="text-brand">✓</span> Syntax highlighting for 29 languages and formats</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Unchanged runs fold away; click to expand</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Soft wrapping and visible line endings</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Overview strip with every change at a glance</li>
@@ -456,6 +460,10 @@
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-add"></span>
             <div><h3 class="font-semibold">Image diff: shipped</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Side by side, overlay and pixel difference views.</p></div>
           </div>
+          <div class="flex gap-4 rounded-2xl border border-add/30 bg-add/5 p-6">
+            <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-add"></span>
+            <div><h3 class="font-semibold">Syntax highlighting: shipped</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Language-aware colours on top of the change colours.</p></div>
+          </div>
           <div class="flex gap-4 rounded-2xl border border-brand/30 bg-brand/5 p-6">
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-brand"></span>
             <div><h3 class="font-semibold">Merge &amp; edit</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Copy changes between sides, edit in place, save.</p></div>
@@ -463,10 +471,6 @@
           <div class="flex gap-4 rounded-2xl border border-black/5 p-6 dark:border-white/10">
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full border-2 border-brand"></span>
             <div><h3 class="font-semibold">Three-way merge</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Resolve git conflicts as <code class="font-mono">git mergetool</code>.</p></div>
-          </div>
-          <div class="flex gap-4 rounded-2xl border border-black/5 p-6 dark:border-white/10">
-            <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full border-2 border-brand"></span>
-            <div><h3 class="font-semibold">Syntax highlighting</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Language-aware colours on top of the change colours.</p></div>
           </div>
           <div class="flex gap-4 rounded-2xl border border-black/5 p-6 dark:border-white/10">
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full border-2 border-brand"></span>
@@ -539,6 +543,10 @@ git config --global difftool.prompt false</code></pre>
           <details class="group py-5">
             <summary class="cursor-pointer list-none text-lg font-semibold">Can Twofold compare folders?</summary>
             <p class="mt-3 text-zinc-600 dark:text-zinc-400">Yes. Open two folders and Twofold lists every changed, added and removed file in a sidebar grouped by directory, streaming results while the comparison runs in parallel. Select a file to see its diff.</p>
+          </details>
+          <details class="group py-5">
+            <summary class="cursor-pointer list-none text-lg font-semibold">Does Twofold have syntax highlighting?</summary>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">Yes. Code is coloured by language on top of the change colours, for 29 languages and formats including Swift, C and C++, JavaScript and TypeScript, Python, Go, Rust, HTML, CSS, JSON, YAML and Markdown. The language is picked from the file name, and you can switch the colours off with Option-Command-Y.</p>
           </details>
           <details class="group py-5">
             <summary class="cursor-pointer list-none text-lg font-semibold">Can Twofold compare images?</summary>

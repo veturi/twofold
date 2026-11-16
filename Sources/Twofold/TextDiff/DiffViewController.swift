@@ -5,7 +5,7 @@ import DiffCore
 @MainActor
 final class DiffViewController: NSViewController {
     enum LoadResult: Sendable {
-        case text(TextDiff, [[Int32]])
+        case text(TextDiff, [[Int32]], [SyntaxMap?])
         case image(ImageComparison)
         case binary(identical: Bool, leftSize: Int, rightSize: Int)
         case failure(String)
@@ -120,6 +120,8 @@ final class DiffViewController: NSViewController {
         canvas.mode = p.layout
         canvas.wrapLines = p.wrapLines
         canvas.showInvisibles = p.showInvisibles
+        canvas.showSyntax = p.syntaxHighlighting
+        bottomBar.setToggle(bottomBar.syntaxButton, on: p.syntaxHighlighting)
         canvas.setFontSize(p.fontSize)
         imageView.mode = p.imageMode
         bottomBar.imageModeControl.selectedSegment = ImageMode.allCases.firstIndex(of: p.imageMode) ?? 0
@@ -187,19 +189,33 @@ final class DiffViewController: NSViewController {
                 if let l, let r { same = FolderCompare.contentsEqual(l, r) }
                 return .binary(identical: same, leftSize: ld.byteCount, rightSize: rd.byteCount)
             }
+            // Tokenizing each side is independent of the diff, so all three run side by side.
+            async let leftSyntax = syntax(ld, l)
+            async let rightSyntax = syntax(rd, r)
             let diff = TextDiff(left: ld, right: rd)
-            return .text(diff, [Columns.compute(ld.lines), Columns.compute(rd.lines)])
+            return .text(diff, [Columns.compute(ld.lines), Columns.compute(rd.lines)], [await leftSyntax, await rightSyntax])
         } catch {
             return .failure(error.localizedDescription)
         }
     }
 
+    /// Files above this size are shown without syntax colours.
+    private nonisolated static let maxSyntaxBytes = 16_000_000
+
+    /// Token colours for one side, when its language can be told from the file name or first line.
+    @concurrent
+    private nonisolated static func syntax(_ doc: TextDocument, _ url: URL?) async -> SyntaxMap? {
+        guard let url, doc.byteCount <= maxSyntaxBytes,
+              let language = SyntaxLanguage.detect(fileName: url.lastPathComponent, firstLine: doc.lines.first) else { return nil }
+        return language.highlight(doc.lines)
+    }
+
     private func apply(_ result: LoadResult, keepScroll: Bool) {
         switch result {
-        case .text(let diff, let columns):
+        case .text(let diff, let columns, let syntax):
             placard.isHidden = true
             showImage(nil)
-            canvas.setDiff(diff, columns: columns, preserveScroll: keepScroll)
+            canvas.setDiff(diff, columns: columns, syntax: syntax, preserveScroll: keepScroll)
             summary = Self.summary(diff.stats)
             bottomBar.statusLabel.stringValue = Self.status(diff)
         case .image(let comparison):

@@ -22,6 +22,8 @@ final class DiffCanvasView: NSView {
 
     private(set) var diff: TextDiff?
     private var columns: [[Int32]] = [[], []]
+    /// Token colours for each side, or nil where the language is unknown.
+    private var syntax: [SyntaxMap?] = [nil, nil]
     private var maxColumns = 0
     private(set) var model: DiffLayout?
     private(set) var metrics = TextMetrics(size: Preferences.shared.fontSize)
@@ -34,6 +36,13 @@ final class DiffCanvasView: NSView {
     }
     var showInvisibles = true {
         didSet { needsDisplay = true }
+    }
+    var showSyntax = true {
+        didSet {
+            guard oldValue != showSyntax else { return }
+            lineCache.removeAll(keepingCapacity: true)
+            needsDisplay = true
+        }
     }
     var expandAll = false {
         didSet { if oldValue != expandAll { rebuild(anchor: captureAnchor()) } }
@@ -123,10 +132,11 @@ final class DiffCanvasView: NSView {
 
     // MARK: Content
 
-    func setDiff(_ d: TextDiff?, columns: [[Int32]], preserveScroll: Bool) {
+    func setDiff(_ d: TextDiff?, columns: [[Int32]], syntax: [SyntaxMap?] = [nil, nil], preserveScroll: Bool) {
         let anchor = preserveScroll ? captureAnchor() : nil
         diff = d
         self.columns = columns
+        self.syntax = syntax
         maxColumns = Int(columns.flatMap { $0 }.max() ?? 0)
         if !preserveScroll {
             expanded = []
@@ -311,6 +321,7 @@ final class DiffCanvasView: NSView {
     // MARK: Typesetting
 
     private static let fromContext = NSAttributedString.Key(kCTForegroundColorFromContextAttributeName as String)
+    private static let foreground = NSAttributedString.Key(kCTForegroundColorAttributeName as String)
 
     private func ctline(_ side: Side, _ line: Int, _ row: Int, _ start: Int, _ end: Int) -> CTLine {
         let key = LineKey(side: UInt8(side.rawValue), line: Int32(line), row: Int32(row))
@@ -318,9 +329,35 @@ final class DiffCanvasView: NSView {
         guard let m = model else { return CTLineCreateWithAttributedString(NSAttributedString()) }
         let str = m.lines(side)[line] as NSString
         let sub = (start == 0 && end == str.length) ? str as String : str.substring(with: NSRange(location: start, length: end - start))
-        let attr = NSAttributedString(string: sub, attributes: [
+        var attr = NSAttributedString(string: sub, attributes: [
             .font: metrics.font, Self.fromContext: true, .paragraphStyle: metrics.paragraphStyle,
         ])
+        if showSyntax, let spans = syntax[side.rawValue]?[line], !spans.isEmpty {
+            // Core Text leaves the last token's colour set in the context, so a line with tokens
+            // gives its plain text an explicit colour too instead of taking it from the context.
+            let colored = NSMutableAttributedString(string: sub, attributes: [
+                .font: metrics.font, Self.foreground: pal.text, .paragraphStyle: metrics.paragraphStyle,
+            ])
+            var i = spans.startIndex
+            if spans.count > 32 {
+                // Long lines: skip straight to the first token that reaches this row.
+                var lo = spans.startIndex, hi = spans.endIndex
+                while lo < hi {
+                    let mid = (lo + hi) / 2
+                    if spans[mid].range.upperBound <= start { lo = mid + 1 } else { hi = mid }
+                }
+                i = lo
+            }
+            while i < spans.endIndex, spans[i].range.lowerBound < end {
+                let a = max(spans[i].range.lowerBound, start), b = min(spans[i].range.upperBound, end)
+                if a < b {
+                    colored.addAttribute(Self.foreground, value: pal.syntax[Int(spans[i].kind.rawValue)],
+                                         range: NSRange(location: a - start, length: b - a))
+                }
+                i += 1
+            }
+            attr = colored
+        }
         let l = CTLineCreateWithAttributedString(attr)
         if lineCache.count > 8000 { lineCache.removeAll(keepingCapacity: true) }
         lineCache[key] = l
@@ -367,6 +404,8 @@ final class DiffCanvasView: NSView {
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         palette = nil
+        // Typeset rows hold syntax colours resolved for the old appearance.
+        lineCache.removeAll(keepingCapacity: true)
         labelCache.removeAll()
         needsDisplay = true
     }
@@ -883,6 +922,8 @@ struct Palette {
     let thumb = Theme.thumb.cgColor
     let thumbBorder = Theme.thumbBorder.cgColor
     let white = CGColor(gray: 1, alpha: 1)
+    /// Indexed by `SyntaxKind.rawValue`.
+    let syntax = SyntaxKind.allCases.map { Theme.syntax($0).cgColor }
     let added = Change(Theme.added)
     let removed = Change(Theme.removed)
     let modified = Change(Theme.modified)

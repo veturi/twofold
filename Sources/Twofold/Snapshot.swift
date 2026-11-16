@@ -21,6 +21,7 @@ enum Snapshot {
         if let l = o.layout { p.overrides["layout"] = l.rawValue }
         if let m = o.imageMode { p.overrides["imageMode"] = m.rawValue }
         if let w = o.wrap { p.overrides["wrapLines"] = w }
+        if let s = o.syntax { p.overrides["syntaxHighlighting"] = s }
         if let f = o.fontSize { p.overrides["fontSize"] = Double(f) }
         p.overrides["showInvisibles"] = p.showInvisibles
 

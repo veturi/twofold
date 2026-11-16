@@ -9,6 +9,7 @@ struct LaunchOptions {
     var imageMode: ImageMode?
     var zoom: CGFloat?
     var wrap: Bool?
+    var syntax: Bool?
     var size = CGSize(width: 1360, height: 860)
     var change: Int?
     var fontSize: CGFloat?
@@ -33,6 +34,8 @@ struct LaunchOptions {
             case "--zoom": o.zoom = next().flatMap { Double($0) }.map { CGFloat($0) }
             case "--wrap": o.wrap = true
             case "--no-wrap": o.wrap = false
+            case "--syntax": o.syntax = true
+            case "--no-syntax": o.syntax = false
             case "--bench": o.bench = true
             case "--file": o.file = next()
             case "--scale": o.scale = next().flatMap { Double($0) }.map { CGFloat($0) } ?? 1
@@ -183,6 +186,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     @objc func toggleWrap(_ sender: Any?) { Preferences.shared.wrapLines.toggle() }
     @objc func toggleInvisibles(_ sender: Any?) { Preferences.shared.showInvisibles.toggle() }
+    @objc func toggleSyntax(_ sender: Any?) { Preferences.shared.syntaxHighlighting.toggle() }
     @objc func biggerText(_ sender: Any?) { Preferences.shared.fontSize += 1 }
     @objc func smallerText(_ sender: Any?) { Preferences.shared.fontSize -= 1 }
     @objc func actualSizeText(_ sender: Any?) { Preferences.shared.fontSize = Preferences.defaultFontSize }
@@ -201,6 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             item.state = ImageMode.allCases.firstIndex(of: p.imageMode) == item.tag ? .on : .off
         case #selector(toggleWrap(_:)): item.state = p.wrapLines ? .on : .off
         case #selector(toggleInvisibles(_:)): item.state = p.showInvisibles ? .on : .off
+        case #selector(toggleSyntax(_:)): item.state = p.syntaxHighlighting ? .on : .off
         case #selector(setAppearance(_:)):
             item.state = [AppearanceChoice.system, .light, .dark][item.tag] == p.appearance ? .on : .off
         default: break
@@ -266,6 +271,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             .separator(),
             item("Wrap Lines", #selector(toggleWrap(_:)), "l", [.command, .option]),
             item("Show Invisibles", #selector(toggleInvisibles(_:)), "i", [.command, .option]),
+            item("Syntax Highlighting", #selector(toggleSyntax(_:)), "y", [.command, .option]),
             item("Expand Unchanged Lines", #selector(ComparisonWindowController.toggleExpandAll(_:)), "e", [.command, .option]),
             .separator(),
             item("Bigger", #selector(biggerText(_:)), "+"),

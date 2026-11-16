@@ -66,6 +66,11 @@ final class Preferences {
         set { set(newValue, "showInvisibles") }
     }
 
+    var syntaxHighlighting: Bool {
+        get { value("syntaxHighlighting") as? Bool ?? true }
+        set { set(newValue, "syntaxHighlighting") }
+    }
+
     var appearance: AppearanceChoice {
         get { (value("appearance") as? String).flatMap(AppearanceChoice.init) ?? .system }
         set { set(newValue.rawValue, "appearance") }

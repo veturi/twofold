@@ -11,6 +11,7 @@ It compares two text files or two images side by side, or two folders with a sid
 - Word-level highlights inside modified lines, refined to characters where only part of a word changed.
 - Unchanged runs fold into "N Unchanged Lines"; click to expand.
 - Soft wrapping, line-end marks in changed lines, an overview strip of every change, and animated next/previous change navigation.
+- **Syntax highlighting** on top of the change colours, for Swift, C, C++, Objective-C, Java, Kotlin, C#, Scala, Dart, JavaScript, TypeScript, Python, Ruby, Go, Rust, PHP, shell, SQL, Lua, HTML, XML, CSS, JSON, YAML, TOML, INI, Markdown, Makefile and Dockerfile. The language comes from the file name or a `#!` line.
 - **Image diff.** Two images open side by side, as an overlay you can fade from one to the other, or as a difference view that highlights every changed pixel and outlines the changed regions. Zoom and pan apply to both sides at once.
 - Light and dark themes, following the system or set manually.
 - Folder comparison runs in parallel and streams results while it works.
@@ -63,6 +64,7 @@ Then `git difftool` compares files one by one, and `git difftool -d` compares wh
 | ⌘1 / ⌘2 | Blocks / Fluid layout |
 | ⌥⌘L | Wrap lines |
 | ⌥⌘I | Show invisibles |
+| ⌥⌘Y | Syntax highlighting |
 | ⌥⌘E | Expand all unchanged lines |
 | ⌘3 / ⌘4 / ⌘5 | Images: side by side / overlay / difference |
 | ⌘+ / ⌘- / ⌘0 | Text size, or image zoom (⌘0 is actual size) |
@@ -78,19 +80,19 @@ Images are whatever macOS can decode (PNG, JPEG, HEIC, TIFF, GIF, WebP and more)
 ## Development
 
 ```sh
-make test      # unit tests: diff engine, property tests, cross-check against diff(1), folders, image diff
-make bench     # diff benchmark (100,000 lines, 1% changed)
+make test      # unit tests: diff engine, property tests, cross-check against diff(1), folders, image diff, syntax
+make bench     # diff and syntax benchmarks (100,000 lines)
 make release   # universal arm64 + x86_64 bundle
 make icon      # regenerate Resources/AppIcon.icns
 ```
 
-`DiffCore` holds the text and image diff engines and folder comparison with no AppKit dependency. `Twofold` is the AppKit app. The diff view draws with Core Text into a single custom view and caches typeset rows.
+`DiffCore` holds the text and image diff engines, the syntax tokenizer and folder comparison with no AppKit dependency. `Twofold` is the AppKit app. The diff view draws with Core Text into a single custom view and caches typeset rows.
 
 The app can render a window offscreen to a PNG, which is how the UI is checked without a screen:
 
 ```sh
 build/Twofold.app/Contents/MacOS/Twofold --snapshot out.png [--appearance dark] [--layout blocks] [--size 1360x860] [--change 3] [--scale 2] [--bench] \
-  [--image-mode side-by-side|overlay|difference] [--zoom 2] A B
+  [--image-mode side-by-side|overlay|difference] [--zoom 2] [--syntax|--no-syntax] A B
 ```
 
 `--bench` also prints frame render times while scrolling.

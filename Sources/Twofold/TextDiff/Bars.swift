@@ -116,6 +116,7 @@ final class BottomBarView: NSView {
     let wrapButton = BottomBarView.iconButton("arrow.turn.down.left", "Wrap Lines", #selector(AppDelegate.toggleWrap(_:)))
     let invisiblesButton = BottomBarView.iconButton("paragraphsign", "Show Invisibles", #selector(AppDelegate.toggleInvisibles(_:)))
     let expandButton = BottomBarView.iconButton("arrow.up.and.down.text.horizontal", "Expand Unchanged Lines", #selector(ComparisonWindowController.toggleExpandAll(_:)))
+    let syntaxButton = BottomBarView.iconButton("chevron.left.forwardslash.chevron.right", "Syntax Highlighting", #selector(AppDelegate.toggleSyntax(_:)))
     let statusLabel = NSTextField(labelWithString: "")
     let changeLabel = NSTextField(labelWithString: "")
     let previousButton = BottomBarView.iconButton("chevron.up", "Previous Change", #selector(ComparisonWindowController.previousChange(_:)))
@@ -148,7 +149,7 @@ final class BottomBarView: NSView {
     var showsOpacity = false { didSet { updateVisibility() } }
 
     private func updateVisibility() {
-        for v in [wrapButton, invisiblesButton, expandButton, previousButton, nextButton] { v.isHidden = showsImageControls }
+        for v in [wrapButton, invisiblesButton, expandButton, syntaxButton, previousButton, nextButton] { v.isHidden = showsImageControls }
         for v in [imageModeControl, zoomLabel, zoomOutButton, zoomInButton, fitButton] as [NSView] { v.isHidden = !showsImageControls }
         for v in [opacitySlider] + opacityLabels as [NSView] { v.isHidden = !(showsImageControls && showsOpacity) }
     }
@@ -175,7 +176,7 @@ final class BottomBarView: NSView {
         }
         zoomLabel.alignment = .right
         zoomLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-        let left = NSStackView(views: [wrapButton, invisiblesButton, expandButton,
+        let left = NSStackView(views: [wrapButton, invisiblesButton, expandButton, syntaxButton,
                                        imageModeControl, opacityLabels[0], opacitySlider, opacityLabels[1]])
         left.spacing = 4
         left.setCustomSpacing(14, after: imageModeControl)

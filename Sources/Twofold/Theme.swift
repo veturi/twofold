@@ -48,6 +48,29 @@ enum Theme {
     static let thumb = dynamic(NSColor(white: 0, alpha: 0.10), NSColor(white: 1, alpha: 0.13))
     static let thumbBorder = dynamic(NSColor(white: 0, alpha: 0.18), NSColor(white: 1, alpha: 0.22))
 
+    // Syntax. Chosen to stay readable on the pale change fills as well as the plain pane.
+    static func syntax(_ kind: SyntaxKind) -> NSColor {
+        switch kind {
+        case .keyword, .tag: syntaxKeyword
+        case .string: syntaxString
+        case .number: syntaxNumber
+        case .comment: syntaxComment
+        case .type: syntaxType
+        case .function: syntaxFunction
+        case .attribute: syntaxAttribute
+        case .property: syntaxProperty
+        }
+    }
+
+    static let syntaxKeyword = hex(0xAD3DA4, 0xFF7AB2)
+    static let syntaxString = hex(0xC4301C, 0xFF8170)
+    static let syntaxNumber = hex(0x2747C7, 0xD0BF69)
+    static let syntaxComment = hex(0x6E7A87, 0x7F8C98)
+    static let syntaxType = hex(0x0B7285, 0x5DD8FF)
+    static let syntaxFunction = hex(0x3F7A1F, 0x8FCB6B)
+    static let syntaxAttribute = hex(0x97590A, 0xFFA14F)
+    static let syntaxProperty = hex(0x20609E, 0x82B6F5)
+
     // Image comparison
     static let checkerLight = hex(0xFFFFFF, 0x2B2A31)
     static let checkerDark = hex(0xECEAF1, 0x222127)

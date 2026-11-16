@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Twofold (formerly VisDiff; the directory and some history still use the old name) is a native macOS visual diff tool: two text files or two images side by side, or two folders with a sidebar of changed files. Swift 6.2 package, AppKit, macOS 26+, no third-party dependencies. Everything builds from the command line. There is no `.xcodeproj`, so don't create one. `RATIONALE.md` explains why the project exists: open source, no subscriptions, built with AI. Keep product decisions consistent with it. `PLAN.md` holds the design intent and scope, including what is deliberately out of scope for v1 (editing/merging, syntax highlighting, and so on). Image diff was added after v1.
+Twofold (formerly VisDiff; the directory and some history still use the old name) is a native macOS visual diff tool: two text files or two images side by side, or two folders with a sidebar of changed files. Swift 6.2 package, AppKit, macOS 26+, no third-party dependencies. Everything builds from the command line. There is no `.xcodeproj`, so don't create one. `RATIONALE.md` explains why the project exists: open source, no subscriptions, built with AI. Keep product decisions consistent with it. `PLAN.md` holds the design intent and scope, including what is deliberately out of scope for v1 (editing/merging and so on). Image diff and syntax highlighting were added after v1.
 
 ## Commands
 
@@ -12,12 +12,12 @@ Twofold (formerly VisDiff; the directory and some history still use the old name
 make app                       # swift build + scripts/bundle.sh → build/Twofold.app (ad-hoc signed)
 make start ARGS="a.txt b.txt"  # build and open a comparison (files or folders)
 make test                      # swift test
-make bench                     # release-mode BenchmarkTests (100k lines, 1% changed)
+make bench                     # release-mode BenchmarkTests (diff and syntax, 100k lines)
 make release                   # universal arm64 + x86_64 bundle
 make icon                      # regenerate Resources/AppIcon.icns from scripts/make-icon.swift
 ```
 
-Run a single test: `swift test --filter DiffTests/testInlineHighlightsWords` (classes are `TextDocumentTests`, `DiffTests`, `ImageDiffTests`, `FolderTests`, `BenchmarkTests`, all in `Tests/DiffCoreTests/DiffCoreTests.swift`). `testMatchesSystemDiff` cross-checks against `/usr/bin/diff`.
+Run a single test: `swift test --filter DiffTests/testInlineHighlightsWords` (classes are `TextDocumentTests`, `DiffTests`, `ImageDiffTests`, `SyntaxTests`, `FolderTests`, `BenchmarkTests`, all in `Tests/DiffCoreTests/DiffCoreTests.swift`). `testMatchesSystemDiff` cross-checks against `/usr/bin/diff`.
 
 `swift build` alone produces a bare executable. Use `make app` / `scripts/bundle.sh` to get a runnable `.app` with its Info.plist and icon.
 
@@ -28,7 +28,7 @@ The app renders a window offscreen to a PNG and exits. Use this to verify any vi
 ```sh
 build/Twofold.app/Contents/MacOS/Twofold --snapshot out.png [--appearance light|dark] [--layout fluid|blocks] \
   [--size 1360x860] [--change N] [--scale 2] [--wrap|--no-wrap] [--font-size 12] [--file rel/path] [--bench] \
-  [--image-mode side-by-side|overlay|difference] [--zoom 2] A B
+  [--image-mode side-by-side|overlay|difference] [--zoom 2] [--syntax|--no-syntax] A B
 ```
 
 `--change` is 1-based and selects the current change. `--file` picks the initially selected file in a folder comparison. `--bench` prints frame render times while scrolling. `--image-mode` and `--zoom` (points per pixel) apply when A and B are images. Options are parsed in `LaunchOptions` (`Sources/Twofold/AppDelegate.swift`), and snapshot overrides to preferences stay in memory only (`Preferences.overrides`).
@@ -40,6 +40,8 @@ Two targets. `DiffCore` has no AppKit dependency and is the only tested module. 
 **DiffCore pipeline:** `TextDocument.decode` (BOM → UTF-8 → Latin-1 fallback; NUL byte means binary; LF/CRLF/CR all split lines, and a line-ending difference alone is not a change) → `TextDiff.init` interns lines to `Int32` → `Myers.matches` (own O(ND) implementation with a time limit fallback) → `makeBlocks` turns match flags into `equal/added/removed/modified` `DiffBlock`s → `splitModified` splits unequal-length modified blocks into similar line pairs plus plain adds/removes → `InlineDiff` computes word-then-character highlight ranges (UTF-16 offsets) for modified lines. Everything the UI draws derives from `TextDiff.blocks`. `FolderCompare` walks both trees, pairs by relative path, and resolves statuses concurrently, streaming results.
 
 **Text diff view (`Sources/Twofold/TextDiff/`):** a single custom `DiffCanvasView` draws both panes, the centre ribbon with Bézier connectors, and the overview strip, and owns scrolling. It is not built from separate NSScrollViews or NSTextViews, which differs from the earlier sketch in PLAN.md §4. `DiffLayout` turns blocks into `LayoutSection`s (equal, fold, change) in a shared logical scroll space `t`, with a per-side `y`/`span`. Fluid mode maps `t` to each side piecewise-linearly so the centred change stays aligned. Blocks mode uses equal spans. Row counts for wrapping come from column arithmetic in `TextMetrics`/`Columns` (monospaced-font assumption), so lines are never typeset just to measure them. Typeset rows are cached as `CTLine`s. `DiffViewController` runs the diff off the main thread and hosts the canvas, path bars and bottom bar (`Bars.swift`).
+
+**Syntax highlighting:** `DiffCore/Syntax.swift` is a lexical tokenizer with no dependencies. `SyntaxLanguage.detect` picks a language from the file name or `#!` line, and `highlight` returns a `SyntaxMap`: per-line `SyntaxSpan`s (UTF-16 ranges and a `SyntaxKind`), with state such as an open block comment carried across lines. Most languages are a `Grammar` (keywords, comment and string delimiters, a few flags) run by the shared `CodeLexer`; HTML/XML, CSS, YAML and Markdown have their own lexers, and HTML hands `<script>` and `<style>` bodies to the JavaScript and CSS ones. To add a language, add a `Grammar` case, its name and its extensions in `Languages`, plus a test. `DiffViewController.compute` tokenizes both sides concurrently with the diff, and `DiffCanvasView.ctline` applies `Theme.syntax` colours when it typesets a row. A row with tokens must give its plain text an explicit colour too, because Core Text leaves the last token's colour set in the context.
 
 **Image diff (`Sources/Twofold/ImageDiff/`):** `DiffViewController.compute` tries text first; when either side is binary it calls `ImageComparison.load`, which decodes with ImageIO (first frame, EXIF orientation applied, sRGB RGBA8, scaled down above 64 megapixels) and falls back to the binary placard if a file is not an image. The pixel comparison itself is `ImageDiff` in DiffCore: plain buffers in; a per-pixel strength mask, a count and region bounding boxes out. The two images are aligned top left and missing pixels count as transparent. `ImageDiffView` draws the three `ImageMode`s (side by side, overlay, difference) and owns zoom and pan, shared by both sides. While an image is shown, `DiffViewController` swaps the bottom bar to image controls, and `ComparisonWindowController` routes ⌘+/⌘-/⌘0 to zoom and disables the Blocks/Fluid toolbar group.
 
