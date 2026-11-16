@@ -55,6 +55,15 @@ public struct ImageDiff: Sendable {
     public var isIdentical: Bool { differingPixels == 0 }
     public var fraction: Double { totalPixels == 0 ? 0 : Double(differingPixels) / Double(totalPixels) }
 
+    /// How strongly to mark a pixel whose largest channel difference is `strength`, from 0 (not at all)
+    /// to 255 (fully). The mark grows with the difference, so a picture that differs a little everywhere
+    /// still shows where it differs a lot. The faintest difference keeps a visible tint.
+    public static func coverage(_ strength: UInt8) -> UInt8 {
+        guard strength > 0 else { return 0 }
+        let share = pow(Double(strength) / 255, 0.8)
+        return UInt8((255 * (0.12 + 0.88 * share)).rounded())
+    }
+
     /// - Parameter tolerance: channel differences up to this value are ignored.
     public init(left: PixelBuffer?, right: PixelBuffer?, tolerance: Int = 0) {
         let lw = left?.width ?? 0, lh = left?.height ?? 0

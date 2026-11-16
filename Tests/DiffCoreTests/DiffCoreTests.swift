@@ -605,6 +605,15 @@ final class ImageDiffTests: XCTestCase {
         XCTAssertEqual(d.fraction, 2.0 / 1200.0, accuracy: 1e-12)
     }
 
+    func testCoverageGrowsWithTheDifference() {
+        XCTAssertEqual(ImageDiff.coverage(0), 0)
+        XCTAssertEqual(ImageDiff.coverage(255), 255)
+        // The faintest difference is still marked, but far more lightly than a large one.
+        XCTAssertGreaterThanOrEqual(ImageDiff.coverage(1), 30)
+        XCTAssertLessThan(Int(ImageDiff.coverage(10)) * 2, Int(ImageDiff.coverage(128)))
+        for v in 1..<255 { XCTAssertLessThanOrEqual(ImageDiff.coverage(UInt8(v)), ImageDiff.coverage(UInt8(v + 1))) }
+    }
+
     func testDistantChangesAreSeparateRegions() {
         let edits: [(Int, Int, [UInt8])] = [(2, 2, [0, 0, 0, 255]), (3, 3, [0, 0, 0, 255]), (190, 90, [0, 0, 0, 255])]
         let d = ImageDiff(left: image(200, 100), right: image(200, 100, edits))

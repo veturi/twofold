@@ -93,11 +93,10 @@ struct ImageComparison: @unchecked Sendable {
                        fullSize: CGSize(width: fullW, height: fullH), scale: scale)
     }
 
-    /// Turns difference strengths into coverage. Even the faintest difference stays clearly visible.
+    /// Turns difference strengths into coverage: faint where the images barely differ, solid where they differ most.
     private static func maskImage(_ diff: ImageDiff) -> CGImage? {
         guard !diff.isIdentical else { return nil }
-        var table = [UInt8](repeating: 0, count: 256)
-        for v in 1..<256 { table[v] = UInt8(120 + v * 135 / 255) }
+        let table = (0..<256).map { ImageDiff.coverage(UInt8($0)) }
         var data = diff.mask
         data.withUnsafeMutableBytes { bytes in
             for i in bytes.indices { bytes[i] = table[Int(bytes[i])] }

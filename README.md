@@ -18,7 +18,7 @@ It compares two text files or two images side by side, or two folders with a sid
 - **Copy changes across.** Copy any change to the other side with the arrows on it or ⌥⌘→ / ⌥⌘←, undo with ⌘Z, save with ⌘S. Saving rewrites only the lines you changed: the encoding, each line's line ending and whether the file ends with a newline stay as they were.
 - **Three-way merge.** As `git mergetool`, Twofold shows your version and theirs side by side with the result below. Changes only one side made are merged already; each conflict is marked until you take a side, take both, or edit the result yourself.
 - **Syntax highlighting** on top of the change colours, for Swift, C, C++, Objective-C, Java, Kotlin, C#, Scala, Dart, JavaScript, TypeScript, Python, Ruby, Go, Rust, PHP, shell, SQL, Lua, HTML, XML, CSS, JSON, YAML, TOML, INI, Markdown, Makefile and Dockerfile. The language comes from the file name or a `#!` line.
-- **Image diff.** Two images open side by side, as an overlay you can fade from one to the other, or as a difference view that highlights every changed pixel and outlines the changed regions. Zoom and pan apply to both sides at once.
+- **Image diff.** Two images open side by side, as an overlay you can fade from one to the other, or as a difference view that highlights every changed pixel, more strongly the more it changed, and outlines the changed regions. Zoom and pan apply to both sides at once.
 - Light and dark themes, following the system or set manually.
 - Folder comparison runs in parallel and streams results while it works.
 - Files reload automatically when they change on disk.
