@@ -2,7 +2,7 @@
 
 A native, open-source visual diff tool for macOS. Version 1 does two things and does them beautifully: compare two text files, and compare two folders.
 
-Status: version 1 implemented. See README.md for usage. One addition beyond this plan: modified blocks with unequal line counts are split into similar line pairs and plain additions or removals, matching how the reference screenshots group changes. Image diff (side by side, overlay and pixel difference) and syntax highlighting have been added since; see README.md.
+Status: version 1 implemented. See README.md for usage. One addition beyond this plan: modified blocks with unequal line counts are split into similar line pairs and plain additions or removals, matching how the reference screenshots group changes. Image diff (side by side, overlay and pixel difference) and syntax highlighting have been added since; see README.md. Section 11 is the roadmap from here.
 
 ## 1. Scope
 
@@ -18,7 +18,7 @@ Status: version 1 implemented. See README.md for usage. One addition beyond this
 
 - Editing, merging, three-way merge, copying changes between sides.
 - Image diff, PDF diff, binary diff beyond "these files differ".
-- Syntax highlighting (the first thing to add after v1; the renderer is designed to take coloured runs).
+- Syntax highlighting (the renderer is designed to take coloured runs).
 - Git integration beyond being a difftool (no changeset browsing, no history).
 - Preferences window, auto-update, notarised distribution, App Store.
 
@@ -199,6 +199,8 @@ Each milestone ends with passing tests and a commit. More commits land inside mi
 
 ## 9. Stretch items, in order, only if v1 is finished
 
+Superseded by section 11. Syntax highlighting has shipped; the other three are item 4 there.
+
 1. Syntax highlighting. It is visible in the reference and accounts for much of its look, so it comes first.
 2. Ignore-whitespace toggle.
 3. Find in pane (Command-F).
@@ -209,3 +211,46 @@ Each milestone ends with passing tests and a commit. More commits land inside mi
 Three reference screenshots have been received and section 3 is matched against them: code in Fluid layout, a multi-file comparison with the sidebar in Blocks layout, and prose in Fluid layout. All three are light theme. The dark theme is designed by carrying the same tokens over to dark backgrounds.
 
 The prose screenshot uses a proportional font. v1 uses a monospaced font for every file, because the wrapping arithmetic in section 4.3 depends on it. Proportional text for prose files is a later addition.
+
+## 11. Roadmap after v1
+
+Sections 1 to 10 describe version 1 as it was planned and built. This section is the plan from here on and replaces the ordering in section 9. The public version of it is the Roadmap section of `docs/index.html`; keep the two in step.
+
+| # | Item | Status |
+|---|---|---|
+| – | Image diff: side by side, overlay, pixel difference | Shipped |
+| – | Syntax highlighting, 29 languages and formats | Shipped |
+| 1 | Merge stage 1: copy changes between sides, save, undo | Next |
+| 2 | Merge stage 2: edit in place | Planned |
+| 3 | Three-way merge, usable as `git mergetool` | Planned |
+| 4 | Unified layout, ignore whitespace, find in pane | Planned |
+| 5 | Mac App Store build | Planned |
+
+Proportional fonts for prose (section 10) stay unscheduled.
+
+### 11.1 Merge stage 1: copy changes, save, undo
+
+Merge and edit is split in two because the halves differ so much in size. Copying a whole change from one side to the other fits the existing model: every change is already a block with a line range on each side, and a full re-diff (about 43 ms for 100,000 lines, tokenizing about 80 ms in parallel) is fast enough to run after each copy. Typing into a pane is a different job (11.2).
+
+In order:
+
+1. **Lossless load and save.** `TextDocument` currently discards what is needed to write a file back: whether the last line ends with a terminator, the terminator of each line when a file mixes them, and the encoding as something to encode with (it keeps only a display name, and whether there was a BOM is folded into that name). Record these, add `TextDocument.encoded() -> Data`, and test that load followed by save reproduces the original bytes for every supported encoding and line-ending style. Nothing else starts until this round-trips, because without it a save would change lines the user never touched.
+2. **Editable document model.** A per-side line buffer that the diff is recomputed from, a dirty flag per side, and an undo stack of line-range replacements (`NSUndoManager`, so ⌘Z and ⇧⌘Z come with the menu items). Scroll position and the current change are kept across the re-diff, as reload does today.
+3. **Copy actions.** For the current change: copy to the right, copy to the left. An added or removed block copies as an insertion or deletion. Buttons sit in the ribbon next to each change in Fluid layout and in the gutter in Blocks layout, with menu items and shortcuts under Navigate or a new Merge menu. Copying a selection of several changes is not in this stage.
+4. **Saving.** Explicit ⌘S (and Save All for both sides), not autosave: the files are usually under version control and a diff tool should not write without being asked. The window shows the edited dot, and closing a window, switching file in a folder comparison, swapping sides, reloading and quitting all ask about unsaved changes first.
+5. **File watching.** `FileWatcher` must ignore the app's own writes, and when a file with unsaved edits changes on disk it must ask rather than reload over them.
+6. **Folder comparison.** Saving updates the file's status in the sidebar. Copying a whole file that exists on one side only (and deleting one) is left for later.
+
+Out of this stage: typing, three-way merge, binary and image files.
+
+### 11.2 Merge stage 2: edit in place
+
+A caret, typing, deletion, paste and cut in either pane, on top of the document model, undo and save from stage 1. The canvas has selection and copy today but no caret and no text input, so this needs `NSTextInputClient` (including marked text for input methods), caret movement by character, word and line across wrapped rows, and auto-scroll to the caret. Re-diffing on every keystroke is fine for ordinary files and needs debouncing, or an incremental path, for very large ones; the syntax map has to be refreshed the same way.
+
+### 11.3 Three-way merge
+
+A base, local and remote file with a result pane, driven by `scripts/twofold` as `git mergetool`. Depends on both merge stages. Not designed yet.
+
+### 11.4 Open point: sandbox
+
+Section 2 turns the sandbox off, which is right for the GitHub build. The Mac App Store build must be sandboxed, and a sandboxed app cannot write to (or, strictly, read) arbitrary paths passed on the command line without the user granting access. This does not block stage 1, but saving should go through one place so that security-scoped access can be added there for the App Store build.

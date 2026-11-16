@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Twofold (formerly VisDiff; the directory and some history still use the old name) is a native macOS visual diff tool: two text files or two images side by side, or two folders with a sidebar of changed files. Swift 6.2 package, AppKit, macOS 26+, no third-party dependencies. Everything builds from the command line. There is no `.xcodeproj`, so don't create one. `RATIONALE.md` explains why the project exists: open source, no subscriptions, built with AI. Keep product decisions consistent with it. `PLAN.md` holds the design intent and scope, including what is deliberately out of scope for v1 (editing/merging and so on). Image diff and syntax highlighting were added after v1.
+Twofold (formerly VisDiff; the directory and some history still use the old name) is a native macOS visual diff tool: two text files or two images side by side, or two folders with a sidebar of changed files. Swift 6.2 package, AppKit, macOS 26+, no third-party dependencies. Everything builds from the command line. There is no `.xcodeproj`, so don't create one. `RATIONALE.md` explains why the project exists: open source, no subscriptions, built with AI. Keep product decisions consistent with it. `PLAN.md` holds the design intent and scope of v1, and its section 11 is the roadmap from here (next: copying changes between sides with save and undo, then editing in place). The public roadmap on the website must say the same.
 
 ## Commands
 

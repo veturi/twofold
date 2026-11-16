@@ -26,7 +26,7 @@ Key facts:
 
 ## What it does not do (yet)
 
-- No merging or editing in v1; copying changes between sides and editing are next on the roadmap.
+- No merging or editing yet. Next on the roadmap: copying a change from one side to the other, with undo and save. After that: editing in place.
 - No three-way merge (planned, for use as `git mergetool`).
 - No PDF or general binary diff. Binary files that are not images are detected and reported as identical or different, nothing more. Animated and multi-page images are compared by their first frame.
 - macOS only. There is no Windows or Linux version.
