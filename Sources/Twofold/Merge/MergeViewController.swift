@@ -134,7 +134,8 @@ final class MergeViewController: NSViewController, NSSplitViewDelegate {
 
     func applyPreferences() {
         let p = Preferences.shared
-        canvas.mode = p.layout
+        // A merge always shows the two sides next to each other, above the result.
+        canvas.mode = p.layout == .unified ? .fluid : p.layout
         canvas.wrapLines = p.wrapLines
         canvas.showInvisibles = p.showInvisibles
         canvas.showSyntax = p.syntaxHighlighting

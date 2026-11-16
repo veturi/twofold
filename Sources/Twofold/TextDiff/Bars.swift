@@ -136,6 +136,7 @@ final class BottomBarView: NSView {
     let invisiblesButton = BottomBarView.iconButton("paragraphsign", "Show Invisibles", #selector(AppDelegate.toggleInvisibles(_:)))
     let expandButton = BottomBarView.iconButton("arrow.up.and.down.text.horizontal", "Expand Unchanged Lines", #selector(ComparisonWindowController.toggleExpandAll(_:)))
     let syntaxButton = BottomBarView.iconButton("chevron.left.forwardslash.chevron.right", "Syntax Highlighting", #selector(AppDelegate.toggleSyntax(_:)))
+    let whitespaceButton = BottomBarView.iconButton("increase.indent", "Ignore Whitespace (⌥⌘B)", #selector(AppDelegate.toggleIgnoreWhitespace(_:)))
     let copyLeftButton = BottomBarView.iconButton("arrow.left.to.line", "Copy Change to Left (⌥⌘←)", #selector(ComparisonWindowController.copyToLeft(_:)))
     let copyRightButton = BottomBarView.iconButton("arrow.right.to.line", "Copy Change to Right (⌥⌘→)", #selector(ComparisonWindowController.copyToRight(_:)))
     let useLeftButton = BottomBarView.iconButton("a.square", "Use A for This Change (⌥⌘1)", #selector(MergeWindowController.useLeft(_:)))
@@ -179,7 +180,7 @@ final class BottomBarView: NSView {
         for v in [wrapButton, invisiblesButton, expandButton, syntaxButton, previousButton, nextButton] {
             v.isHidden = showsImageControls
         }
-        for v in [copyLeftButton, copyRightButton] { v.isHidden = showsImageControls || showsMergeControls }
+        for v in [copyLeftButton, copyRightButton, whitespaceButton] { v.isHidden = showsImageControls || showsMergeControls }
         for v in [useLeftButton, useRightButton, useBothButton, nextConflictButton] { v.isHidden = !showsMergeControls }
         for v in [imageModeControl, zoomLabel, zoomOutButton, zoomInButton, fitButton] as [NSView] { v.isHidden = !showsImageControls }
         for v in [opacitySlider] + opacityLabels as [NSView] { v.isHidden = !(showsImageControls && showsOpacity) }
@@ -207,7 +208,7 @@ final class BottomBarView: NSView {
         }
         zoomLabel.alignment = .right
         zoomLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-        let left = NSStackView(views: [wrapButton, invisiblesButton, expandButton, syntaxButton,
+        let left = NSStackView(views: [wrapButton, invisiblesButton, expandButton, syntaxButton, whitespaceButton,
                                        imageModeControl, opacityLabels[0], opacitySlider, opacityLabels[1]])
         left.spacing = 4
         left.setCustomSpacing(14, after: imageModeControl)

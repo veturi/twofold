@@ -41,6 +41,9 @@ public struct TextDiff: Sendable {
     /// Changed character ranges (UTF-16 offsets) inside modified lines, keyed by line index.
     public let leftHighlights: [Int: [Range<Int>]]
     public let rightHighlights: [Int: [Range<Int>]]
+    /// True when lines that differ only in whitespace were compared as equal. The two lines of an
+    /// equal block can then differ in their spaces and tabs.
+    public let ignoresWhitespace: Bool
 
     public var isIdentical: Bool { changeBlocks.isEmpty }
 
@@ -48,13 +51,16 @@ public struct TextDiff: Sendable {
         left.lineEnding != right.lineEnding && left.lineEnding != .none && right.lineEnding != .none
     }
 
-    public init(left: TextDocument, right: TextDocument, timeLimit: Double = 2.0) {
+    /// With `ignoreWhitespace`, indentation, trailing whitespace and the amount of whitespace between
+    /// words do not count as differences. Whitespace that appears where the other side has none still does.
+    public init(left: TextDocument, right: TextDocument, ignoreWhitespace: Bool = false, timeLimit: Double = 2.0) {
         var table: [String: Int32] = [:]
         table.reserveCapacity(left.lines.count + right.lines.count)
         func intern(_ lines: [String]) -> [Int32] {
             var out = [Int32]()
             out.reserveCapacity(lines.count)
-            for s in lines {
+            for line in lines {
+                let s = ignoreWhitespace ? TextDiff.whitespaceKey(line) : line
                 if let v = table[s] {
                     out.append(v)
                 } else {
@@ -68,15 +74,34 @@ public struct TextDiff: Sendable {
         let a = intern(left.lines)
         let b = intern(right.lines)
         let (am, bm) = Myers.matches(a, b, timeLimit: timeLimit)
-        self.init(left: left, right: right, blocks: TextDiff.splitModified(TextDiff.makeBlocks(am, bm), left.lines, right.lines))
+        self.init(left: left, right: right, blocks: TextDiff.splitModified(TextDiff.makeBlocks(am, bm), left.lines, right.lines),
+                  ignoreWhitespace: ignoreWhitespace)
+    }
+
+    /// A line as it is compared when whitespace is ignored: without leading and trailing whitespace,
+    /// and with every run of whitespace inside it as one space.
+    public static func whitespaceKey(_ line: String) -> String {
+        var out = String.UnicodeScalarView()
+        var pending = false
+        for sc in line.unicodeScalars {
+            if sc == " " || sc == "\t" || (sc.value > 127 || sc.value < 32) && sc.properties.isWhitespace {
+                pending = true
+                continue
+            }
+            if pending && !out.isEmpty { out.append(" ") }
+            pending = false
+            out.append(sc)
+        }
+        return String(out)
     }
 
     /// A comparison whose blocks were worked out elsewhere, as a three-way merge does. The blocks must
     /// cover both documents in order.
-    public init(left: TextDocument, right: TextDocument, blocks: [DiffBlock]) {
+    public init(left: TextDocument, right: TextDocument, blocks: [DiffBlock], ignoreWhitespace: Bool = false) {
         self.left = left
         self.right = right
         self.blocks = blocks
+        ignoresWhitespace = ignoreWhitespace
 
         var changes: [Int] = []
         var stats = DiffStats()
@@ -89,7 +114,7 @@ public struct TextDiff: Sendable {
             case .removed: stats.deletions += 1
             case .modified:
                 stats.changes += 1
-                InlineDiff.compute(left.lines, block.left, right.lines, block.right, &lh, &rh)
+                InlineDiff.compute(left.lines, block.left, right.lines, block.right, &lh, &rh, ignoreWhitespace: ignoreWhitespace)
             case .equal: break
             }
         }
@@ -272,7 +297,7 @@ enum InlineDiff {
     static func compute(
         _ leftLines: [String], _ leftRange: Range<Int>,
         _ rightLines: [String], _ rightRange: Range<Int>,
-        _ lh: inout [Int: [Range<Int>]], _ rh: inout [Int: [Range<Int>]]
+        _ lh: inout [Int: [Range<Int>]], _ rh: inout [Int: [Range<Int>]], ignoreWhitespace: Bool = false
     ) {
         var tl = tokenize(leftLines, leftRange)
         var tr = tokenize(rightLines, rightRange)
@@ -282,8 +307,9 @@ enum InlineDiff {
             if let v = ids[s] { return v }
             let v = Int32(ids.count); ids[s] = v; return v
         }
-        let a = tl.map { id($0.text) }
-        let b = tr.map { id($0.text) }
+        // When whitespace is ignored every run of it is the same token, and none is ever highlighted.
+        let a = tl.map { id(ignoreWhitespace && $0.kind == 1 ? " " : $0.text) }
+        let b = tr.map { id(ignoreWhitespace && $0.kind == 1 ? " " : $0.text) }
         var (am, bm) = Myers.matches(a, b, timeLimit: 0.2)
 
         // Refine a single changed word to the characters that differ.
@@ -321,6 +347,7 @@ enum InlineDiff {
 
         func emit(_ t: [Token], _ matched: [Bool], _ out: inout [Int: [Range<Int>]]) {
             for (k, tok) in t.enumerated() where !matched[k] && tok.kind != 3 && tok.end > tok.start {
+                if ignoreWhitespace && tok.kind == 1 { continue }
                 var list = out[tok.line] ?? []
                 if let last = list.last, last.upperBound >= tok.start {
                     list[list.count - 1] = last.lowerBound..<max(last.upperBound, tok.end)

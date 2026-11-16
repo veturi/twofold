@@ -255,6 +255,26 @@ final class DiffTests: XCTestCase {
         XCTAssertEqual(d.rightHighlights[0], [22..<23])
     }
 
+    func testIgnoringWhitespace() {
+        let a = TextDocument(text: "if x {\n    return 1\n}\nlet y = 2\nend\n")
+        let b = TextDocument(text: "if x {\n\treturn   1  \n}\nlet y = 3\nend\n")
+        XCTAssertEqual(TextDiff(left: a, right: b).changeBlocks.count, 2)
+        let d = TextDiff(left: a, right: b, ignoreWhitespace: true)
+        XCTAssertTrue(d.ignoresWhitespace)
+        XCTAssertEqual(d.blocks.map(\.kind), [DiffBlock.Kind.equal, .modified, .equal])
+        XCTAssertEqual(d.blocks[1].left, 3..<4)
+        // Whitespace where the other side has none is still a difference.
+        XCTAssertFalse(TextDiff(left: TextDocument(text: "a b\n"), right: TextDocument(text: "ab\n"), ignoreWhitespace: true).isIdentical)
+        XCTAssertTrue(TextDiff(left: TextDocument(text: "  a \t b\n\n"), right: TextDocument(text: "a b  \n   \n"), ignoreWhitespace: true).isIdentical)
+        XCTAssertEqual(TextDiff.whitespaceKey(" \tfoo   bar\u{00A0} "), "foo bar")
+    }
+
+    func testIgnoringWhitespaceLeavesItOutOfInlineHighlights() {
+        let d = TextDiff(left: TextDocument(text: "  call(a, b)\n"), right: TextDocument(text: "\tcall(a,  c)\n"), ignoreWhitespace: true)
+        XCTAssertEqual(d.leftHighlights[0], [10..<11])
+        XCTAssertEqual(d.rightHighlights[0], [10..<11])
+    }
+
     func testEditNextToDeletionIsSplit() {
         let d = diff(
             "keep\nThe quick brown fox jumps\nApplications\nFile: San Diego.jpg\nkeep2\n",

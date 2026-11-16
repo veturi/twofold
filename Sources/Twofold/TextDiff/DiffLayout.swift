@@ -9,6 +9,9 @@ enum Side: Int {
 ///
 /// `t` and `h` are in the shared logical scroll space. Each side has its own position `y`,
 /// the space it occupies `span` (equal to `h` in Blocks mode), and its content height.
+///
+/// In Unified mode there is one column: both sides share `y` (equal to `t`), an unchanged line is
+/// shown once, and a change shows its left lines followed by its right lines, which start `rightOffset` lower.
 struct LayoutSection {
     enum Kind: UInt8 { case equal, fold, change }
 
@@ -25,7 +28,10 @@ struct LayoutSection {
     var rightSpan: CGFloat
     var leftHeight: CGFloat
     var rightHeight: CGFloat
+    var rightOffset: CGFloat = 0
 
+    /// Where a side's own lines start within the section.
+    func top(_ s: Side) -> CGFloat { s == .left ? leftY : rightY + rightOffset }
     func lines(_ s: Side) -> Range<Int> { s == .left ? leftLines : rightLines }
     func y(_ s: Side) -> CGFloat { s == .left ? leftY : rightY }
     func span(_ s: Side) -> CGFloat { s == .left ? leftSpan : rightSpan }
@@ -51,6 +57,8 @@ final class DiffLayout {
     private var sectionY: [[CGFloat]] = [[], []]
     /// Top of each line in its side's coordinates; -1 for folded lines.
     private(set) var lineTop: [[CGFloat]]
+    /// Unified mode only: left lines that are not drawn, because the equal right line stands for both.
+    private var leftHidden: [Bool] = []
     private var breaks: [[Int: [Int]]] = [[:], [:]]
     /// Section index of each change, by change ordinal.
     private(set) var changeSections: [Int] = []
@@ -69,6 +77,7 @@ final class DiffLayout {
             [CGFloat](repeating: -1, count: diff.left.lines.count),
             [CGFloat](repeating: -1, count: diff.right.lines.count),
         ]
+        if mode == .unified { leftHidden = [Bool](repeating: false, count: diff.left.lines.count) }
         if let wc = wrapColumns {
             for side in 0..<2 {
                 let lines = side == 0 ? diff.left.lines : diff.right.lines
@@ -92,6 +101,12 @@ final class DiffLayout {
 
     func lineHeight(_ side: Side, _ line: Int) -> CGFloat {
         metrics.lineHeight(rows: breaks[side.rawValue][line]?.count ?? 1)
+    }
+
+    /// Whether a line is on screen somewhere: not folded away, and not a left line Unified mode leaves out.
+    func isShown(_ side: Side, _ line: Int) -> Bool {
+        guard line >= 0, line < lineTop[side.rawValue].count, lineTop[side.rawValue][line] >= 0 else { return false }
+        return !(side == .left && mode == .unified && leftHidden[line])
     }
 
     // MARK: Building
@@ -131,6 +146,17 @@ final class DiffLayout {
     private func addEqual(_ block: DiffBlock, _ offsets: Range<Int>) {
         for k in offsets {
             let l = block.left.lowerBound + k, r = block.right.lowerBound + k
+            if mode == .unified {
+                let h = lineHeight(.right, r)
+                lineTop[0][l] = t
+                lineTop[1][r] = t
+                leftHidden[l] = true
+                sections.append(LayoutSection(
+                    kind: .equal, block: -1, change: -1, leftLines: l..<(l + 1), rightLines: r..<(r + 1),
+                    t: t, h: h, leftY: t, rightY: t, leftSpan: h, rightSpan: h, leftHeight: h, rightHeight: h))
+                t += h; yl = t; yr = t
+                continue
+            }
             let lh = lineHeight(.left, l), rh = lineHeight(.right, r)
             let h = max(lh, rh)
             let ls = mode == .blocks ? h : lh, rs = mode == .blocks ? h : rh
@@ -161,8 +187,17 @@ final class DiffLayout {
         }
         var rh: CGFloat = 0
         for r in block.right {
-            lineTop[1][r] = yr + rh
+            lineTop[1][r] = yr + rh + (mode == .unified ? lh : 0)
             rh += lineHeight(.right, r)
+        }
+        if mode == .unified {
+            let h = lh + rh
+            changeSections.append(sections.count)
+            sections.append(LayoutSection(
+                kind: .change, block: index, change: ordinal, leftLines: block.left, rightLines: block.right,
+                t: t, h: h, leftY: t, rightY: t, leftSpan: h, rightSpan: h, leftHeight: lh, rightHeight: rh, rightOffset: lh))
+            t += h; yl = t; yr = t
+            return
         }
         let h = max(lh, rh)
         let ls = mode == .blocks ? h : lh, rs = mode == .blocks ? h : rh
@@ -223,6 +258,26 @@ final class DiffLayout {
             if tops[mid] <= y { lo = mid + 1 } else { hi = mid }
         }
         return max(r.lowerBound, lo - 1)
+    }
+
+    /// Where a line is, or where the fold that hides it is, in its side's coordinates.
+    func position(_ side: Side, _ line: Int) -> CGFloat? {
+        let top = lineTop[side.rawValue][line]
+        if top >= 0 { return top }
+        // Sections are in line order, so the fold is the last one starting at or before the line.
+        var lo = 0, hi = sections.count
+        while lo < hi {
+            let mid = (lo + hi) >> 1
+            if sections[mid].lines(side).lowerBound <= line { lo = mid + 1 } else { hi = mid }
+        }
+        var i = lo - 1
+        while i >= 0 {
+            let s = sections[i]
+            if s.lines(side).contains(line) { return s.kind == .fold ? s.y(side) : nil }
+            if !s.lines(side).isEmpty { break }
+            i -= 1
+        }
+        return nil
     }
 
     /// Index of the section containing a visible line.

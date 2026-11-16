@@ -30,7 +30,9 @@ Key facts:
 ## What it does not do (yet)
 
 - The three-way merge view has no separate pane for the common base, and its result pane has no syntax colours or line numbers. It merges text files only.
-- No unified (single-column) layout, no ignore-whitespace option and no find in the diff panes yet. These are next on the roadmap.
+- Unified layout: besides the two side-by-side layouts (Fluid and Blocks), both files can be shown in one column, with removed lines in red and added lines in green and both files' line numbers.
+- Find (Command-F) searches both files at once, highlights every match, shows the count, and opens folded unchanged lines when a match is inside them. It is not case sensitive. There is no replace and no regular expressions.
+- Ignore whitespace (View menu, or the button in the bottom bar): indentation, trailing whitespace and the amount of whitespace between words stop counting as differences. Whitespace added where there was none still counts.
 - No PDF or general binary diff. Binary files that are not images are detected and reported as identical or different, nothing more. Animated and multi-page images are compared by their first frame.
 - macOS only. There is no Windows or Linux version.
 

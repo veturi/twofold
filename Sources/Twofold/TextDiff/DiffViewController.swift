@@ -15,6 +15,12 @@ final class DiffViewController: NSViewController {
     let canvas = DiffCanvasView()
     let imageView = ImageDiffView()
     let bottomBar = BottomBarView()
+    let findBar = FindBarView()
+    private var findBarHeight: NSLayoutConstraint?
+    /// True from Find… until Done, also while an image or a placard hides the bar.
+    private var finding = false
+    /// The setting the diff on screen was made with; a change of the preference diffs again.
+    private var ignoreWhitespace = Preferences.shared.ignoreWhitespace
     let placard = PlacardView()
 
     private(set) var isLoading = false
@@ -50,18 +56,25 @@ final class DiffViewController: NSViewController {
     override func loadView() {
         let root = DropView()
         root.wantsLayer = true
-        for v in [pathBar, canvas, imageView, bottomBar, placard] as [NSView] {
+        for v in [pathBar, findBar, canvas, imageView, bottomBar, placard] as [NSView] {
             v.translatesAutoresizingMaskIntoConstraints = false
             root.addSubview(v)
         }
         placard.isHidden = true
         imageView.isHidden = true
+        findBar.isHidden = true
+        let findHeight = findBar.heightAnchor.constraint(equalToConstant: 0)
+        findBarHeight = findHeight
         NSLayoutConstraint.activate([
+            findHeight,
+            findBar.topAnchor.constraint(equalTo: pathBar.bottomAnchor),
+            findBar.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            findBar.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             pathBar.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor),
             pathBar.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             pathBar.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             pathBar.heightAnchor.constraint(equalToConstant: PathBarView.height),
-            canvas.topAnchor.constraint(equalTo: pathBar.bottomAnchor),
+            canvas.topAnchor.constraint(equalTo: findBar.bottomAnchor),
             canvas.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             canvas.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             canvas.bottomAnchor.constraint(equalTo: bottomBar.topAnchor),
@@ -84,6 +97,10 @@ final class DiffViewController: NSViewController {
         }
         canvas.onStateChange = { [weak self] in self?.updateChangeLabel() }
         canvas.onCopy = { [weak self] side in self?.copyChange(to: side) }
+        canvas.onFindChange = { [weak self] in self?.updateFindCount() }
+        findBar.onQuery = { [weak self] query in self?.canvas.setFindQuery(query) }
+        findBar.onStep = { [weak self] forward in self?.canvas.findStep(forward: forward) }
+        findBar.onClose = { [weak self] in self?.closeFind() }
         canvas.onEdit = { [weak self] side, a, b, text, coalesce in self?.replaceText(side, a, b, text, coalesce: coalesce) }
         imageView.onStateChange = { [weak self] in
             self?.updatePathBarGeometry()
@@ -139,6 +156,12 @@ final class DiffViewController: NSViewController {
         canvas.showInvisibles = p.showInvisibles
         canvas.showSyntax = p.syntaxHighlighting
         bottomBar.setToggle(bottomBar.syntaxButton, on: p.syntaxHighlighting)
+        bottomBar.setToggle(bottomBar.whitespaceButton, on: p.ignoreWhitespace)
+        if p.ignoreWhitespace != ignoreWhitespace {
+            ignoreWhitespace = p.ignoreWhitespace
+            // A load in flight is diffed again when it arrives; see `apply`.
+            if canvas.diff != nil && !isLoading { rediff() }
+        }
         canvas.setFontSize(p.fontSize)
         imageView.mode = p.imageMode
         bottomBar.imageModeControl.selectedSegment = ImageMode.allCases.firstIndex(of: p.imageMode) ?? 0
@@ -164,8 +187,9 @@ final class DiffViewController: NSViewController {
         canvas.busy = true
         watcher?.invalidate()
         watcher = nil
+        let ignore = ignoreWhitespace
         Task { [weak self] in
-            let result = await Self.compute(left, right)
+            let result = await Self.compute(left, right, ignoreWhitespace: ignore)
             guard let self, gen == self.generation else { return }
             self.isLoading = false
             self.apply(result, keepScroll: keepScroll)
@@ -208,7 +232,7 @@ final class DiffViewController: NSViewController {
     }
 
     @concurrent
-    static func compute(_ l: URL?, _ r: URL?) async -> LoadResult {
+    static func compute(_ l: URL?, _ r: URL?, ignoreWhitespace: Bool = false) async -> LoadResult {
         do {
             let ld = try l.map { try TextDocument.load($0) } ?? .empty
             let rd = try r.map { try TextDocument.load($0) } ?? .empty
@@ -218,7 +242,7 @@ final class DiffViewController: NSViewController {
                 if let l, let r { same = FolderCompare.contentsEqual(l, r) }
                 return .binary(identical: same, leftSize: ld.byteCount, rightSize: rd.byteCount)
             }
-            return await diff(ld, rd, l, r)
+            return await diff(ld, rd, l, r, ignoreWhitespace: ignoreWhitespace)
         } catch {
             return .failure(error.localizedDescription)
         }
@@ -226,11 +250,11 @@ final class DiffViewController: NSViewController {
 
     /// Diffs two documents already in memory. Used for the first load and again after every edit.
     @concurrent
-    static func diff(_ ld: TextDocument, _ rd: TextDocument, _ l: URL?, _ r: URL?) async -> LoadResult {
+    static func diff(_ ld: TextDocument, _ rd: TextDocument, _ l: URL?, _ r: URL?, ignoreWhitespace: Bool = false) async -> LoadResult {
         // Tokenizing each side is independent of the diff, so all three run side by side.
         async let leftSyntax = syntax(ld, l)
         async let rightSyntax = syntax(rd, r)
-        let diff = TextDiff(left: ld, right: rd)
+        let diff = TextDiff(left: ld, right: rd, ignoreWhitespace: ignoreWhitespace)
         return .text(diff, [Columns.compute(ld.lines), Columns.compute(rd.lines)], [await leftSyntax, await rightSyntax])
     }
 
@@ -278,9 +302,64 @@ final class DiffViewController: NSViewController {
             bottomBar.statusLabel.stringValue = ""
         }
         updateChangeLabel()
+        updateFindBar()
         onSummaryChange?()
         // Only now may queued keystrokes run: they must see the document that was just shown.
         canvas.busy = false
+        // The preference changed while this diff was being made.
+        if case .text(let diff, _, _) = result, diff.ignoresWhitespace != ignoreWhitespace { rediff() }
+    }
+
+    // MARK: Find
+
+    /// Find works on text; an image or a placard has nothing to search.
+    var canFind: Bool { canvas.diff != nil && !showsImage && placard.isHidden }
+
+    func showFind() {
+        guard canFind else { return }
+        finding = true
+        updateFindBar()
+        view.window?.makeFirstResponder(findBar.field)
+        findBar.field.selectText(nil)
+    }
+
+    func closeFind() {
+        finding = false
+        findBar.query = ""
+        canvas.setFindQuery("")
+        updateFindBar()
+        view.window?.makeFirstResponder(showsImage ? imageView : canvas)
+    }
+
+    /// Searches for `query` as if it had been typed into the find bar.
+    func find(_ query: String) {
+        guard canFind else { return }
+        finding = true
+        findBar.query = query
+        updateFindBar()
+        canvas.setFindQuery(query)
+    }
+
+    func findStep(forward: Bool) {
+        guard canFind else { return }
+        if canvas.findQuery.isEmpty { showFind() } else { canvas.findStep(forward: forward) }
+    }
+
+    /// Searches for the selected text, up to the end of its first line.
+    func useSelectionForFind() {
+        guard let text = canvas.selectedText?.split(separator: "\n", omittingEmptySubsequences: false).first, !text.isEmpty else { return }
+        find(String(text))
+    }
+
+    private func updateFindBar() {
+        let show = finding && canFind
+        guard show == findBar.isHidden else { return }
+        findBar.isHidden = !show
+        findBarHeight?.constant = show ? FindBarView.height : 0
+    }
+
+    private func updateFindCount() {
+        findBar.setCount(current: canvas.findIndex, total: canvas.findMatches.count, overflow: canvas.findOverflow)
     }
 
     // MARK: Editing
@@ -355,9 +434,9 @@ final class DiffViewController: NSViewController {
         isLoading = true
         canvas.busy = true
         pendingEdit = edit
-        let l = docs[0], r = docs[1], urls = self.urls
+        let l = docs[0], r = docs[1], urls = self.urls, ignore = ignoreWhitespace
         Task { [weak self] in
-            let result = await Self.diff(l, r, urls.0, urls.1)
+            let result = await Self.diff(l, r, urls.0, urls.1, ignoreWhitespace: ignore)
             guard let self, gen == self.generation else { return }
             self.isLoading = false
             self.apply(result, keepScroll: true)
@@ -519,8 +598,12 @@ final class DiffViewController: NSViewController {
         } else if d.left.encoding != "UTF-8" {
             parts.append(d.left.encoding)
         }
-        if d.isIdentical && !(d.left.lines.isEmpty && d.right.lines.isEmpty) && parts.isEmpty {
+        if d.ignoresWhitespace && d.isIdentical && d.left.lines != d.right.lines {
+            parts.append("Only whitespace differs")
+        } else if d.isIdentical && !(d.left.lines.isEmpty && d.right.lines.isEmpty) && parts.isEmpty {
             parts.append("Files are identical")
+        } else if d.ignoresWhitespace {
+            parts.append("Ignoring whitespace")
         }
         return parts.joined(separator: "   ·   ")
     }

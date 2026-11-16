@@ -199,7 +199,7 @@ Each milestone ends with passing tests and a commit. More commits land inside mi
 
 ## 9. Stretch items, in order, only if v1 is finished
 
-Superseded by section 11. Syntax highlighting has shipped; the other three are item 4 there.
+Superseded by section 11. All four have shipped; the last three are described in section 11.4.
 
 1. Syntax highlighting. It is visible in the reference and accounts for much of its look, so it comes first.
 2. Ignore-whitespace toggle.
@@ -223,8 +223,8 @@ Sections 1 to 10 describe version 1 as it was planned and built. This section is
 | – | Merge stage 1: copy changes between sides, save, undo | Shipped |
 | – | Merge stage 2: edit in place | Shipped |
 | – | Three-way merge, usable as `git mergetool` | Shipped |
-| 1 | Unified layout, ignore whitespace, find in pane | Next |
-| 2 | Mac App Store build | Planned |
+| – | Unified layout, ignore whitespace, find | Shipped |
+| 1 | Mac App Store build | Next |
 
 Proportional fonts for prose (section 10) stay unscheduled.
 
@@ -278,6 +278,15 @@ Shipped. `twofold --wait --base "$BASE" --output "$MERGED" "$LOCAL" "$REMOTE"` o
 - **Setup.** The Git Integration window (Twofold menu, and a link in the start window) has a switch each for diff tool and merge tool. It runs `git config --global` itself and points git at the launcher inside the app bundle by full path, so nothing needs to be on the `PATH`. The switches show what the configuration says, including another tool being set or a hand-written command.
 - **Not built:** a pane for the base, syntax colours, line numbers and visible line endings in the result pane, per-line terminators in the result (a file with mixed line endings is saved with its most common one), reloading when an input changes on disk, merging images or binary files, and starting a merge from the start window (it is command-line only).
 
-### 11.4 Open point: sandbox
+### 11.4 Unified layout, ignore whitespace, find
+
+Shipped. As built:
+
+- **Unified layout.** A third layout mode beside Blocks and Fluid, drawn by the same canvas with both sides in one pane. An unchanged line is shown once, as B's, with A's and B's line numbers; a change shows A's lines and then B's. Here old lines are red and new lines green whatever the kind of change, because in one column that is what tells them apart; the overview strip keeps the colours of the change kinds. Editing, copying changes and find all work in it. It has no ribbon, so the copy arrows are only in the bottom bar and the menu. A merge window ignores it and stays side by side.
+- **Ignore whitespace.** One switch, off by default. Lines are compared without their leading and trailing whitespace and with every run of whitespace as one space, so re-indenting and re-aligning stop being changes, while a space added where there was none is still one. Inside changed lines, whitespace is not highlighted. The status bar says when it is on, and says "Only whitespace differs" when that is all there is. It does not apply to folder statuses or to merges.
+- **Find.** ⌘F opens a bar above the panes that searches both files as you type: not case sensitive, plain text, no replace. Every match is highlighted and ticked in the overview strip; ⌘G and ⇧⌘G step through them in reading order and wrap around, a match inside folded lines opens the fold, and the current match becomes the selection. The search stops counting at 20,000 matches. In a merge window find searches the result, with the text view's own find bar.
+- **Not built:** regular expressions, case-sensitive and whole-word search, replace, a separate search of the two top panes of a merge, and finer whitespace options (ignore all whitespace, or only line ends).
+
+### 11.5 Open point: sandbox
 
 Section 2 turns the sandbox off, which is right for the GitHub build. The Mac App Store build must be sandboxed, and a sandboxed app cannot write to (or, strictly, read) arbitrary paths passed on the command line without the user granting access. The sandboxed build also cannot run `git` or write `~/.gitconfig`, so its Git Integration window will have to show the commands to copy instead of switches. This does not block stage 1, but saving should go through one place so that security-scoped access can be added there for the App Store build.

@@ -44,10 +44,13 @@
           "https://twofoldapp.org/assets/hero-dark.png",
           "https://twofoldapp.org/assets/folders.png",
           "https://twofoldapp.org/assets/images.png",
-          "https://twofoldapp.org/assets/merge.png"
+          "https://twofoldapp.org/assets/merge.png",
+          "https://twofoldapp.org/assets/unified.png"
         ],
         "featureList": [
-          "Side-by-side file comparison with Fluid and Blocks layouts",
+          "Side-by-side file comparison with Fluid and Blocks layouts, and a single-column Unified layout",
+          "Find in both files, with every match highlighted",
+          "Ignore whitespace: indentation and spacing changes stop counting as differences",
           "Word- and character-level highlights inside changed lines",
           "Syntax highlighting for 29 languages and formats",
           "Copy changes from one side to the other, with undo and save",
@@ -294,6 +297,10 @@
           <img src="assets/merge.png" width="2560" height="1600" loading="lazy" alt="Three-way merge: your version and theirs side by side, with the merged result below and one conflict still marked" class="w-full rounded-xl">
           <figcaption class="px-2 pb-1 pt-3 text-sm text-zinc-500">Three-way merge: both sides on top, the result below. Changes only one side made are merged for you; conflicts wait in amber until you pick a side or edit the result.</figcaption>
         </figure>
+        <figure class="overflow-hidden rounded-2xl border border-black/5 bg-white p-3 lg:col-span-2 dark:border-white/5 dark:bg-white/5">
+          <img src="assets/unified.png" width="2560" height="1600" loading="lazy" alt="Unified layout: both files in one column, removed lines in red and added lines in green, with the find bar open and every match highlighted" class="w-full rounded-xl">
+          <figcaption class="px-2 pb-1 pt-3 text-sm text-zinc-500">Unified layout: both files in one column, old lines in red and new ones in green. Find highlights every match in both files.</figcaption>
+        </figure>
       </div>
 
       <ul class="mx-auto mt-16 grid max-w-4xl gap-x-10 gap-y-3 text-zinc-600 sm:grid-cols-2 dark:text-zinc-400">
@@ -302,6 +309,9 @@
         <li class="flex gap-3"><span class="text-brand">✓</span> Copy changes across, undo, and save</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Edit in place: type, paste and delete in either pane</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Three-way merge for git conflicts</li>
+        <li class="flex gap-3"><span class="text-brand">✓</span> Unified layout: both files in one column</li>
+        <li class="flex gap-3"><span class="text-brand">✓</span> Find in both files with ⌘F</li>
+        <li class="flex gap-3"><span class="text-brand">✓</span> Ignore whitespace when indentation is all that changed</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Unchanged runs fold away; click to expand</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Soft wrapping and visible line endings</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Overview strip with every change at a glance</li>
@@ -490,13 +500,13 @@
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-add"></span>
             <div><h3 class="font-semibold">Three-way merge: shipped</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Resolve git conflicts as <code class="font-mono">git mergetool</code>.</p></div>
           </div>
+          <div class="flex gap-4 rounded-2xl border border-add/30 bg-add/5 p-6">
+            <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-add"></span>
+            <div><h3 class="font-semibold">Unified layout, ignore whitespace, find: shipped</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Both files in one column, a switch that sets indentation changes aside, and ⌘F across both files.</p></div>
+          </div>
           <div class="flex gap-4 rounded-2xl border border-brand/30 bg-brand/5 p-6">
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-brand"></span>
-            <div><h3 class="font-semibold">Unified layout, ignore whitespace, find: next</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">The small things that add up.</p></div>
-          </div>
-          <div class="flex gap-4 rounded-2xl border border-black/5 p-6 dark:border-white/10">
-            <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full border-2 border-brand"></span>
-            <div><h3 class="font-semibold">Mac App Store</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">4,99 € once, for one-click install and automatic updates. The GitHub version stays free, and there will never be a subscription.</p></div>
+            <div><h3 class="font-semibold">Mac App Store: next</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">4,99 € once, for one-click install and automatic updates. The GitHub version stays free, and there will never be a subscription.</p></div>
           </div>
         </div>
       </div>

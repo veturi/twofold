@@ -165,11 +165,12 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
 
     @objc private func preferencesChanged() {
         diffVC.applyPreferences()
-        layoutGroup?.selectedIndex = Preferences.shared.layout == .blocks ? 0 : 1
+        layoutGroup?.selectedIndex = LayoutMode.allCases.firstIndex(of: Preferences.shared.layout) ?? 1
     }
 
     @objc private func layoutGroupChanged(_ sender: NSToolbarItemGroup) {
-        Preferences.shared.layout = sender.selectedIndex == 0 ? .blocks : .fluid
+        guard LayoutMode.allCases.indices.contains(sender.selectedIndex) else { return }
+        Preferences.shared.layout = LayoutMode.allCases[sender.selectedIndex]
     }
 
     // MARK: Actions
@@ -178,6 +179,11 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
     @objc func previousChange(_ sender: Any?) { diffVC.canvas.previousChange() }
     @objc func nextFile(_ sender: Any?) { sidebar?.selectNext(1) }
     @objc func previousFile(_ sender: Any?) { sidebar?.selectNext(-1) }
+
+    @objc func showFind(_ sender: Any?) { diffVC.showFind() }
+    @objc func findNext(_ sender: Any?) { diffVC.findStep(forward: true) }
+    @objc func findPrevious(_ sender: Any?) { diffVC.findStep(forward: false) }
+    @objc func useSelectionForFind(_ sender: Any?) { diffVC.useSelectionForFind() }
 
     @objc func toggleExpandAll(_ sender: Any?) {
         diffVC.canvas.expandAll.toggle()
@@ -246,6 +252,10 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
             return diffVC.undo.canRedo
         case #selector(zoomImageToFit(_:)):
             return diffVC.showsImage
+        case #selector(showFind(_:)), #selector(findNext(_:)), #selector(findPrevious(_:)):
+            return diffVC.canFind
+        case #selector(useSelectionForFind(_:)):
+            return diffVC.canFind && diffVC.canvas.selectedText != nil
         case #selector(nextFile(_:)), #selector(previousFile(_:)):
             return kind == .folders
         case #selector(toggleExpandAll(_:)):
@@ -288,11 +298,11 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
         guard id == .layoutMode else { return nil }
         let group = NSToolbarItemGroup(
-            itemIdentifier: id, images: [Icons.blocksLayout, Icons.fluidLayout], selectionMode: .selectOne,
-            labels: ["Blocks", "Fluid"], target: self, action: #selector(layoutGroupChanged(_:)))
+            itemIdentifier: id, images: [Icons.blocksLayout, Icons.fluidLayout, Icons.unifiedLayout], selectionMode: .selectOne,
+            labels: ["Blocks", "Fluid", "Unified"], target: self, action: #selector(layoutGroupChanged(_:)))
         group.label = "Layout"
         group.toolTip = "Layout"
-        group.selectedIndex = Preferences.shared.layout == .blocks ? 0 : 1
+        group.selectedIndex = LayoutMode.allCases.firstIndex(of: Preferences.shared.layout) ?? 1
         group.autovalidates = false
         group.isEnabled = !diffVC.showsImage
         layoutGroup = group

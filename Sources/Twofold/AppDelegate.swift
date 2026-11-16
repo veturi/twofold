@@ -25,6 +25,10 @@ struct LaunchOptions {
     var use: String?
     /// Snapshot runs only: show the Git Integration window, after applying e.g. "diff=on,merge=off" ("show" changes nothing).
     var gitSetup: String?
+    var ignoreWhitespace = false
+    /// Snapshot runs only: search for this text, then step to the next match this many times.
+    var find: String?
+    var findNext = 0
     var size = CGSize(width: 1360, height: 860)
     var change: Int?
     var fontSize: CGFloat?
@@ -55,6 +59,9 @@ struct LaunchOptions {
             case "--use": o.use = next()
             case "--merge": break
             case "--git-setup": o.gitSetup = next()
+            case "--ignore-whitespace": o.ignoreWhitespace = true
+            case "--find": o.find = next()
+            case "--find-next": o.findNext = next().flatMap { Int($0) } ?? 0
             case "--save": o.save = true
             case "--undo": o.undo = true
             case "--caret":
@@ -275,6 +282,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
     @objc func setLayoutBlocks(_ sender: Any?) { Preferences.shared.layout = .blocks }
     @objc func setLayoutFluid(_ sender: Any?) { Preferences.shared.layout = .fluid }
+    @objc func setLayoutUnified(_ sender: Any?) { Preferences.shared.layout = .unified }
+    @objc func toggleIgnoreWhitespace(_ sender: Any?) { Preferences.shared.ignoreWhitespace.toggle() }
     /// Sent by the View menu (the item's tag) and by the bottom bar's segmented control.
     @objc func setImageMode(_ sender: Any?) {
         let index = (sender as? NSSegmentedControl)?.selectedSegment ?? (sender as? NSMenuItem)?.tag ?? 0
@@ -299,6 +308,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         switch item.action {
         case #selector(setLayoutBlocks(_:)): item.state = p.layout == .blocks ? .on : .off
         case #selector(setLayoutFluid(_:)): item.state = p.layout == .fluid ? .on : .off
+        case #selector(setLayoutUnified(_:)): item.state = p.layout == .unified ? .on : .off
+        case #selector(toggleIgnoreWhitespace(_:)): item.state = p.ignoreWhitespace ? .on : .off
         case #selector(setImageMode(_:)):
             item.state = ImageMode.allCases.firstIndex(of: p.imageMode) == item.tag ? .on : .off
         case #selector(toggleWrap(_:)): item.state = p.wrapLines ? .on : .off
@@ -360,6 +371,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             item("Copy", #selector(DiffCanvasView.copy(_:)), "c"),
             item("Paste", #selector(DiffCanvasView.paste(_:)), "v"),
             item("Select All", #selector(NSResponder.selectAll(_:)), "a"),
+            .separator(),
+            item("Find…", #selector(ComparisonWindowController.showFind(_:)), "f"),
+            item("Find Next", #selector(ComparisonWindowController.findNext(_:)), "g"),
+            item("Find Previous", #selector(ComparisonWindowController.findPrevious(_:)), "g", [.command, .shift]),
+            item("Use Selection for Find", #selector(ComparisonWindowController.useSelectionForFind(_:)), "e"),
         ])
         let appearance = NSMenu(title: "Appearance")
         appearance.addItem(item("System", #selector(setAppearance(_:)), tag: 0))
@@ -370,14 +386,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         _ = submenu("View", [
             item("Blocks", #selector(setLayoutBlocks(_:)), "1"),
             item("Fluid", #selector(setLayoutFluid(_:)), "2"),
+            item("Unified", #selector(setLayoutUnified(_:)), "3"),
             .separator(),
-            item("Images Side by Side", #selector(setImageMode(_:)), "3", tag: 0),
-            item("Image Overlay", #selector(setImageMode(_:)), "4", tag: 1),
-            item("Image Difference", #selector(setImageMode(_:)), "5", tag: 2),
+            item("Images Side by Side", #selector(setImageMode(_:)), "4", tag: 0),
+            item("Image Overlay", #selector(setImageMode(_:)), "5", tag: 1),
+            item("Image Difference", #selector(setImageMode(_:)), "6", tag: 2),
             .separator(),
             item("Wrap Lines", #selector(toggleWrap(_:)), "l", [.command, .option]),
             item("Show Invisibles", #selector(toggleInvisibles(_:)), "i", [.command, .option]),
             item("Syntax Highlighting", #selector(toggleSyntax(_:)), "y", [.command, .option]),
+            item("Ignore Whitespace", #selector(toggleIgnoreWhitespace(_:)), "b", [.command, .option]),
             item("Expand Unchanged Lines", #selector(ComparisonWindowController.toggleExpandAll(_:)), "e", [.command, .option]),
             .separator(),
             item("Bigger", #selector(biggerText(_:)), "+"),

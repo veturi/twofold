@@ -8,6 +8,9 @@ It compares two text files or two images side by side, or two folders with a sid
 
 - **Fluid layout.** Change blocks on each side are joined by curves through a centre ribbon, and the two sides scroll so the change at the centre of the window stays aligned. No filler lines.
 - **Blocks layout.** Both sides are padded so matching lines sit on the same row.
+- **Unified layout.** Both files in one column: unchanged lines once, with both line numbers; a change shows its old lines in red, then its new lines in green.
+- **Find.** ⌘F searches both files at once, highlights every match and marks them in the overview strip. ⌘G and ⇧⌘G step through them, opening folded lines on the way. In a merge window, find searches the result.
+- **Ignore whitespace.** With ⌥⌘B, indentation, trailing whitespace and the amount of whitespace between words stop counting as differences. Whitespace added where there was none still counts.
 - Word-level highlights inside modified lines, refined to characters where only part of a word changed.
 - Unchanged runs fold into "N Unchanged Lines"; click to expand.
 - Soft wrapping, line-end marks in changed lines, an overview strip of every change, and animated next/previous change navigation.
@@ -94,12 +97,15 @@ The same command works outside git: `twofold --base base.txt --output merged.txt
 | ⌘X / ⌘C / ⌘V | Cut / copy / paste |
 | ⌘Z / ⇧⌘Z | Undo / redo |
 | ⌘S | Save edited files |
-| ⌘1 / ⌘2 | Blocks / Fluid layout |
+| ⌘F / ⌘G / ⇧⌘G | Find / next match / previous match |
+| ⌘E | Find the selected text |
+| ⌘1 / ⌘2 / ⌘3 | Blocks / Fluid / Unified layout |
+| ⌥⌘B | Ignore whitespace |
 | ⌥⌘L | Wrap lines |
 | ⌥⌘I | Show invisibles |
 | ⌥⌘Y | Syntax highlighting |
 | ⌥⌘E | Expand all unchanged lines |
-| ⌘3 / ⌘4 / ⌘5 | Images: side by side / overlay / difference |
+| ⌘4 / ⌘5 / ⌘6 | Images: side by side / overlay / difference |
 | ⌘+ / ⌘- / ⌘0 | Text size, or image zoom (⌘0 is actual size) |
 | ⌘9 | Zoom image to fit |
 | ⇧⌘S | Swap sides |
@@ -128,7 +134,7 @@ make icon      # regenerate Resources/AppIcon.icns
 The app can render a window offscreen to a PNG, which is how the UI is checked without a screen:
 
 ```sh
-build/Twofold.app/Contents/MacOS/Twofold --snapshot out.png [--appearance dark] [--layout blocks] [--size 1360x860] [--change 3] [--scale 2] [--bench] \
+build/Twofold.app/Contents/MacOS/Twofold --snapshot out.png [--appearance dark] [--layout blocks|fluid|unified] [--ignore-whitespace] [--find text] [--size 1360x860] [--change 3] [--scale 2] [--bench] \
   [--image-mode side-by-side|overlay|difference] [--zoom 2] [--syntax|--no-syntax] \
   [--copy left|right] [--caret left:12:4] [--type "text"] [--undo] [--save] A B
 ```

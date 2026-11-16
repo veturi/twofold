@@ -29,7 +29,12 @@ final class DiffCanvasView: NSView {
     private(set) var metrics = TextMetrics(size: Preferences.shared.fontSize)
 
     var mode: LayoutMode = .fluid {
-        didSet { if oldValue != mode { rebuild(anchor: captureAnchor()) } }
+        didSet {
+            guard oldValue != mode else { return }
+            // The anchor is taken in the old mode's geometry, which `model` still describes.
+            rebuild(anchor: captureAnchor(mode: oldValue))
+            if oldValue == .unified || mode == .unified { searchAgain() }
+        }
     }
     var wrapLines = true {
         didSet { if oldValue != wrapLines { hOffset = 0; rebuild(anchor: captureAnchor()) } }
@@ -85,7 +90,17 @@ final class DiffCanvasView: NSView {
     }
     private var labelCache: [LabelKey: CTLine] = [:]
 
-    private var selection: (side: Side, anchor: TextPos, head: TextPos)?
+    var selection: (side: Side, anchor: TextPos, head: TextPos)?
+
+    /// Find: every match of `findQuery` in reading order, the matches of each line, and the current one.
+    private(set) var findQuery = ""
+    var findMatches: [FindMatch] = []
+    var findLines: [[Int: Range<Int>]] = [[:], [:]]
+    var findIndex: Int?
+    /// True when the search stopped at `maxFindMatches`.
+    var findOverflow = false
+    /// Called when the matches or the current match change.
+    var onFindChange: (() -> Void)?
     private var focusSide: Side = .left
 
     /// True from the start of a re-diff until its result is shown. Edits wait in `pendingOps` meanwhile.
@@ -133,14 +148,26 @@ final class DiffCanvasView: NSView {
 
     // MARK: Geometry
 
-    var ribbonWidth: CGFloat { mode == .fluid ? Self.fluidRibbonWidth : 1 }
-    var paneWidth: CGFloat { max(120, floor((bounds.width - Self.stripWidth - ribbonWidth) / 2)) }
-    func paneX(_ s: Side) -> CGFloat { s == .left ? 0 : paneWidth + ribbonWidth }
+    var ribbonWidth: CGFloat { mode == .fluid ? Self.fluidRibbonWidth : (mode == .blocks ? 1 : 0) }
+    /// Width of one pane. In Unified mode the two sides share a single pane.
+    var paneWidth: CGFloat {
+        mode == .unified ? max(120, bounds.width - Self.stripWidth)
+            : max(120, floor((bounds.width - Self.stripWidth - ribbonWidth) / 2))
+    }
+    func paneX(_ s: Side) -> CGFloat { s == .left || mode == .unified ? 0 : paneWidth + ribbonWidth }
+    /// What the path bar lines up with. Above a single column it still shows A and B as two halves.
+    private var headerGeometry: (CGFloat, CGFloat) {
+        mode == .unified ? (floor((bounds.width - Self.stripWidth) / 2), 1) : (paneWidth, ribbonWidth)
+    }
 
     private var digits: Int {
         max(3, String(max(diff?.left.lines.count ?? 0, diff?.right.lines.count ?? 0)).count)
     }
-    var gutterWidth: CGFloat { ceil(CGFloat(digits) * metrics.smallCharWidth + metrics.charWidth + 26) }
+    private var numberWidth: CGFloat { ceil(CGFloat(digits) * metrics.smallCharWidth) }
+    /// Unified mode has two columns of line numbers, A's then B's.
+    var gutterWidth: CGFloat {
+        ceil(CGFloat(digits) * metrics.smallCharWidth + metrics.charWidth + 26) + (mode == .unified ? numberWidth + 10 : 0)
+    }
     var textX: CGFloat { gutterWidth + 10 }
     private var wrapColumns: Int? {
         wrapLines ? max(16, Int((paneWidth - textX - 18) / metrics.charWidth)) : nil
@@ -155,7 +182,7 @@ final class DiffCanvasView: NSView {
     /// Scroll offset of one side. In Fluid mode the line at the vertical centre is aligned across sides.
     func sideScroll(_ side: Side) -> CGFloat {
         guard let m = model else { return 0 }
-        if mode == .blocks { return scrollT }
+        if mode != .fluid { return scrollT }
         let half = bounds.height / 2 - Self.topInset
         let y = m.sideY(forT: scrollT + half, side) - half
         let maxS = max(0, m.totals[side.rawValue] + Self.topInset + Self.bottomInset - bounds.height)
@@ -217,6 +244,7 @@ final class DiffCanvasView: NSView {
             selection = nil
         }
         rebuild(anchor: anchor)
+        searchAgain()
     }
 
     func setFontSize(_ size: CGFloat) {
@@ -238,7 +266,7 @@ final class DiffCanvasView: NSView {
         }
         if let anchor { restore(anchor) }
         clampScroll()
-        onGeometryChange?(paneWidth, ribbonWidth)
+        onGeometryChange?(headerGeometry.0, headerGeometry.1)
         onStateChange?()
         window?.invalidateCursorRects(for: self)
         needsDisplay = true
@@ -251,7 +279,7 @@ final class DiffCanvasView: NSView {
             if let m = model, m.wrapColumns != wrapColumns {
                 rebuild(anchor: captureAnchor())
             } else {
-                onGeometryChange?(paneWidth, ribbonWidth)
+                onGeometryChange?(headerGeometry.0, headerGeometry.1)
             }
             lineCache.removeAll(keepingCapacity: true)
         }
@@ -267,11 +295,15 @@ final class DiffCanvasView: NSView {
         var screenY: CGFloat
     }
 
-    private func captureAnchor(screenY: CGFloat? = nil) -> Anchor? {
+    private func captureAnchor(screenY: CGFloat? = nil, mode: LayoutMode? = nil) -> Anchor? {
         guard let m = model, bounds.height > 0 else { return nil }
         let sy = screenY ?? bounds.height / 2
-        for side in [Side.left, .right] where !m.lines(side).isEmpty {
-            let y = sideScroll(side) + sy - Self.topInset
+        let mode = mode ?? self.mode
+        // In Unified mode unchanged lines belong to the right side.
+        for side in (mode == .unified ? [Side.right, .left] : [Side.left, .right]) where !m.lines(side).isEmpty {
+            let scroll = mode == self.mode ? sideScroll(side)
+                : (mode == .fluid ? m.sideY(forT: scrollT + bounds.height / 2 - Self.topInset, side) - bounds.height / 2 + Self.topInset : scrollT)
+            let y = scroll + sy - Self.topInset
             let s = m.sections[m.sectionIndex(side, atY: y)]
             if s.kind == .fold {
                 return Anchor(side: side, line: s.lines(side).lowerBound, fraction: 0, screenY: sy)
@@ -514,9 +546,13 @@ final class DiffCanvasView: NSView {
             let sy = y - off + Self.topInset
             switch s.kind {
             case .fold:
-                renderFold(ctx, s, side, x0, sy)
+                if mode != .unified || side == .right { renderFold(ctx, s, side, x0, sy) }
             case .equal:
-                renderLine(ctx, m, side, s.lines(side).lowerBound, x0, sy, kind: nil, current: false)
+                if mode != .unified {
+                    renderLine(ctx, m, side, s.lines(side).lowerBound, x0, sy, kind: nil, current: false)
+                } else if side == .right {
+                    renderLine(ctx, m, side, s.rightLines.lowerBound, x0, sy, kind: nil, current: false, paired: s.leftLines.lowerBound)
+                }
             case .change:
                 renderChange(ctx, m, s, side, x0, sy, off, topY, botY, pulse)
             }
@@ -534,9 +570,13 @@ final class DiffCanvasView: NSView {
                               _ x0: CGFloat, _ sy: CGFloat, _ off: CGFloat, _ topY: CGFloat, _ botY: CGFloat,
                               _ pulse: CGFloat?) {
         guard let diff else { return }
-        let colors = colors(s, diff)
+        // In one column the old lines are red and the new ones green, whatever kind the change is.
+        let unified = mode == .unified
+        let kind: DiffBlock.Kind = unified ? (side == .left ? .removed : .added) : diff.blocks[s.block].kind
+        let colors = unified ? pal.colors(kind) : colors(s, diff)
         let current = s.change == currentChange
         let h = s.height(side)
+        let sy = sy + (side == .right ? s.rightOffset : 0)
         if h > 0 {
             let body = CGRect(x: x0, y: sy, width: paneWidth, height: h)
             fill(ctx, body, current ? colors.bodyCurrent : colors.body)
@@ -546,7 +586,7 @@ final class DiffCanvasView: NSView {
             var l = m.line(in: s, side, atY: topY) ?? lines.lowerBound
             let tops = m.lineTop[side.rawValue]
             while l < lines.upperBound && tops[l] <= botY {
-                renderLine(ctx, m, side, l, x0, tops[l] - off + Self.topInset, kind: diff.blocks[s.block].kind, current: current, colors: colors)
+                renderLine(ctx, m, side, l, x0, tops[l] - off + Self.topInset, kind: kind, current: current, colors: colors)
                 l += 1
             }
             if mode == .fluid {
@@ -564,7 +604,7 @@ final class DiffCanvasView: NSView {
 
     private func renderLine(_ ctx: CGContext, _ m: DiffLayout, _ side: Side, _ line: Int,
                             _ x0: CGFloat, _ sy: CGFloat, kind: DiffBlock.Kind?, current: Bool,
-                            colors override: Palette.Change? = nil) {
+                            colors override: Palette.Change? = nil, paired: Int? = nil) {
         let colors = override ?? kind.map { pal.colors($0) }
         let rows = m.rowStarts(side, line)
         let text = m.lines(side)[line]
@@ -576,8 +616,15 @@ final class DiffCanvasView: NSView {
         let num = numberLine(line + 1)
         let markerX = x0 + gutterWidth - metrics.charWidth - 8
         ctx.setFillColor(current ? pal.white : pal.lineNumber)
-        ctx.textPosition = CGPoint(x: markerX - 8 - width(num), y: firstBaseline)
+        // Unified mode: A's number in the first column, B's in the second; an unchanged line has both.
+        let ownColumn = mode == .unified && side == .left ? markerX - 8 - numberWidth - 10 : markerX - 8
+        ctx.textPosition = CGPoint(x: ownColumn - width(num), y: firstBaseline)
         CTLineDraw(num, ctx)
+        if let paired {
+            let other = numberLine(paired + 1)
+            ctx.textPosition = CGPoint(x: markerX - 8 - numberWidth - 10 - width(other), y: firstBaseline)
+            CTLineDraw(other, ctx)
+        }
         if let kind {
             let marker = kind == .added ? "+" : (kind == .removed ? "−" : "~")
             ctx.setFillColor(current ? pal.white : (colors ?? pal.colors(kind)).marker)
@@ -593,6 +640,7 @@ final class DiffCanvasView: NSView {
         let tx = x0 + textX - hOffset
         let highlights = side == .left ? diff?.leftHighlights[line] : diff?.rightHighlights[line]
         let sel = selectionRange(side, line, length)
+        let found = findLines[side.rawValue][line]
         for r in 0..<rows.count {
             let rowTop = sy + metrics.linePad + CGFloat(r) * metrics.rowHeight
             if rowTop > bounds.height { break }
@@ -608,6 +656,19 @@ final class DiffCanvasView: NSView {
                     let xa = CTLineGetOffsetForStringIndex(ctl, a - rs, nil)
                     let xb = CTLineGetOffsetForStringIndex(ctl, b - rs, nil)
                     let rect = CGRect(x: tx + xa - 1, y: rowTop, width: xb - xa + 2, height: metrics.rowHeight)
+                    ctx.addPath(CGPath(roundedRect: rect, cornerWidth: 2.5, cornerHeight: 2.5, transform: nil))
+                    ctx.fillPath()
+                }
+            }
+            if let found {
+                for k in found {
+                    let f = findMatches[k].range
+                    let a = max(f.lowerBound, rs), b = min(f.upperBound, re)
+                    guard a < b else { continue }
+                    let xa = CTLineGetOffsetForStringIndex(ctl, a - rs, nil)
+                    let xb = CTLineGetOffsetForStringIndex(ctl, b - rs, nil)
+                    let rect = CGRect(x: tx + xa - 1, y: rowTop, width: xb - xa + 2, height: metrics.rowHeight)
+                    ctx.setFillColor(k == findIndex ? pal.findCurrent : pal.findMatch)
                     ctx.addPath(CGPath(roundedRect: rect, cornerWidth: 2.5, cornerHeight: 2.5, transform: nil))
                     ctx.fillPath()
                 }
@@ -679,6 +740,7 @@ final class DiffCanvasView: NSView {
     }
 
     private func renderRibbon(_ ctx: CGContext, _ m: DiffLayout) {
+        if mode == .unified { return }
         let rx0 = paneWidth
         let w = ribbonWidth
         if mode == .blocks {
@@ -836,6 +898,17 @@ final class DiffCanvasView: NSView {
             ctx.setFillColor(c == currentChange ? colors.marker : colors.stroke)
             ctx.fill(r)
         }
+        if !findMatches.isEmpty {
+            ctx.setFillColor(pal.findTick)
+            var last: CGFloat = -10
+            for f in findMatches {
+                guard let top = m.position(f.side, f.line) else { continue }
+                let y = (4 + (m.t(forY: top, f.side) + Self.topInset) * scale).rounded()
+                if abs(y - last) < 2 { continue }
+                last = y
+                ctx.fill(CGRect(x: sx + 1, y: y, width: 3, height: 2))
+            }
+        }
         if maxScrollT > 0 {
             let r = CGRect(x: sx + 2, y: 4 + scrollT * scale, width: Self.stripWidth - 3, height: max(12, bounds.height * scale))
             let p = CGPath(roundedRect: r, cornerWidth: 3.5, cornerHeight: 3.5, transform: nil)
@@ -852,6 +925,13 @@ final class DiffCanvasView: NSView {
     // MARK: Hit testing
 
     private func side(at p: CGPoint) -> Side? {
+        if mode == .unified {
+            guard p.x < paneWidth, let m = model, !m.sections.isEmpty else { return nil }
+            // A change shows its left lines first; everything else is the right side's.
+            let y = p.y - Self.topInset + scrollT
+            let s = m.sections[m.sectionIndex(.left, atY: y)]
+            return s.kind == .change && (y < s.leftY + s.leftHeight || s.rightLines.isEmpty) && !s.leftLines.isEmpty ? .left : .right
+        }
         if p.x < paneWidth { return .left }
         if p.x >= paneX(.right) && p.x < bounds.width - Self.stripWidth { return .right }
         return nil
@@ -871,6 +951,7 @@ final class DiffCanvasView: NSView {
         if s.kind == .fold {
             return y <= s.y(side) + s.span(side) ? .fold(s.block) : .none
         }
+        if mode == .unified && side == .left && s.kind == .equal { return .none }
         guard let l = m.line(in: s, side, atY: y) else {
             return .none
         }
@@ -1182,8 +1263,7 @@ extension DiffCanvasView {
     }
 
     private func isVisible(_ side: Side, _ line: Int) -> Bool {
-        guard let m = model, line >= 0, line < m.lines(side).count else { return false }
-        return m.lineTop[side.rawValue][line] >= 0
+        model?.isShown(side, line) ?? false
     }
 
     /// One character back. With `visibleOnly`, a line start steps over folded lines to the line shown above.
@@ -1541,6 +1621,146 @@ extension DiffCanvasView: @preconcurrency NSTextInputClient {
     }
 }
 
+// MARK: - Find
+
+/// One occurrence of the search text: a UTF-16 range within a line of one side.
+struct FindMatch: Equatable {
+    var side: Side
+    var line: Int
+    var range: Range<Int>
+}
+
+extension DiffCanvasView {
+    static let maxFindMatches = 20_000
+
+    /// Sets the text to look for and moves to the first match at or after the current one,
+    /// or after the top of the view. An empty string ends the search.
+    func setFindQuery(_ query: String) {
+        guard query != findQuery else { return }
+        let previous = findIndex.map { findMatches[$0] }
+        findQuery = query
+        searchAgain()
+        if !findMatches.isEmpty {
+            let near = previous.flatMap { p in
+                findMatches.firstIndex { $0.side == p.side && ($0.line, $0.range.lowerBound) >= (p.line, p.range.lowerBound) }
+            }
+            selectMatch(near ?? firstMatchInView())
+        }
+        onFindChange?()
+        needsDisplay = true
+    }
+
+    /// Searches both sides again, in the order the text is read: block by block, and line by line
+    /// where the sides are equal. Called when the query, the documents or the layout mode change.
+    func searchAgain() {
+        let previous = findIndex.map { findMatches[$0] }
+        findMatches = []
+        findLines = [[:], [:]]
+        findIndex = nil
+        findOverflow = false
+        defer {
+            onFindChange?()
+            needsDisplay = true
+        }
+        guard !findQuery.isEmpty, let diff else { return }
+        let query = findQuery
+        let length = (query as NSString).length
+        func search(_ side: Side, _ line: Int) {
+            let string = side == .left ? diff.left.lines[line] : diff.right.lines[line]
+            guard string.utf8.count >= length else { return }
+            guard findMatches.count < Self.maxFindMatches else {
+                findOverflow = true
+                return
+            }
+            let text = string as NSString
+            let start = findMatches.count
+            var from = 0
+            while from < text.length {
+                let r = text.range(of: query, options: [.caseInsensitive], range: NSRange(location: from, length: text.length - from))
+                if r.location == NSNotFound || r.length == 0 { break }
+                findMatches.append(FindMatch(side: side, line: line, range: r.location..<NSMaxRange(r)))
+                from = NSMaxRange(r)
+            }
+            if findMatches.count > start { findLines[side.rawValue][line] = start..<findMatches.count }
+        }
+        for block in diff.blocks {
+            if block.kind == .equal {
+                for k in 0..<block.left.count {
+                    // Unified mode shows an unchanged line once, as the right side's.
+                    if mode != .unified { search(.left, block.left.lowerBound + k) }
+                    search(.right, block.right.lowerBound + k)
+                }
+            } else {
+                for l in block.left { search(.left, l) }
+                for r in block.right { search(.right, r) }
+            }
+            if findOverflow { break }
+        }
+        if let previous { findIndex = findMatches.firstIndex(of: previous) }
+    }
+
+    private func firstMatchInView() -> Int {
+        guard let m = model else { return 0 }
+        for (i, f) in findMatches.enumerated() {
+            // A match inside a fold counts as being where the fold is.
+            if let y = m.position(f.side, f.line), y + metrics.rowHeight - sideScroll(f.side) + Self.topInset > 0 { return i }
+        }
+        return 0
+    }
+
+    /// Moves to the next or previous match, wrapping around at the ends.
+    func findStep(forward: Bool) {
+        let n = findMatches.count
+        guard n > 0 else {
+            NSSound.beep()
+            return
+        }
+        if let i = findIndex {
+            selectMatch((i + (forward ? 1 : n - 1)) % n)
+        } else {
+            let first = firstMatchInView()
+            selectMatch(forward ? first : (first + n - 1) % n)
+        }
+    }
+
+    /// Makes a match current: opens the fold that hides it, selects it and scrolls it into view.
+    private func selectMatch(_ i: Int) {
+        guard i >= 0, i < findMatches.count, let diff else { return }
+        findIndex = i
+        let f = findMatches[i]
+        if let m = model, m.lineTop[f.side.rawValue][f.line] < 0,
+           let block = diff.blocks.firstIndex(where: { $0.kind == .equal && (f.side == .left ? $0.left : $0.right).contains(f.line) }) {
+            expanded.insert(block)
+            rebuild(anchor: captureAnchor())
+        }
+        let start = TextPos(line: f.line, offset: f.range.lowerBound)
+        selection = (f.side, start, TextPos(line: f.line, offset: f.range.upperBound))
+        focusSide = f.side
+        typingRun = false
+        marked = nil
+        caretGoalX = nil
+        if let m = model, let r = caretRect(f.side, start) {
+            if r.minY < 30 || r.maxY > bounds.height - 70 {
+                let y = r.midY - Self.topInset + sideScroll(f.side)
+                let target = min(max(m.t(forY: y, f.side) - (bounds.height / 2 - Self.topInset), 0), maxScrollT)
+                if window?.isVisible == true {
+                    scrollTarget = target
+                    startTicking()
+                } else {
+                    scrollT = target
+                }
+            }
+            if !wrapLines {
+                let left = paneX(f.side) + textX, right = paneX(f.side) + paneWidth - 60
+                if r.minX < left { hOffset -= left - r.minX + 40 } else if r.minX > right { hOffset += r.minX - right + 40 }
+                clampScroll()
+            }
+        }
+        onFindChange?()
+        needsDisplay = true
+    }
+}
+
 /// What a three-way merge's result takes for one change, and whether the change is still an open conflict.
 struct MergeMark: Equatable {
     var left = false
@@ -1576,6 +1796,9 @@ struct Palette {
     let foldPill = Theme.foldPill.cgColor
     let invisible = Theme.invisible.cgColor
     let textSelection = Theme.textSelection.cgColor
+    let findMatch = Theme.findMatch.cgColor
+    let findCurrent = Theme.findCurrent.cgColor
+    let findTick = Theme.findTick.cgColor
     let thumb = Theme.thumb.cgColor
     let thumbBorder = Theme.thumbBorder.cgColor
     let white = CGColor(gray: 1, alpha: 1)

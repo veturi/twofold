@@ -81,6 +81,19 @@ final class MergeWindowController: NSWindowController, NSWindowDelegate, NSToolb
         mergeVC.applyPreferences()
     }
 
+    // Find searches the result, which is the text being written. The text view brings its own find bar.
+    private func find(_ action: NSTextFinder.Action) {
+        let item = NSMenuItem()
+        item.tag = action.rawValue
+        window?.makeFirstResponder(mergeVC.result.textView)
+        mergeVC.result.textView.performTextFinderAction(item)
+    }
+
+    @objc func showFind(_ sender: Any?) { find(.showFindInterface) }
+    @objc func findNext(_ sender: Any?) { find(.nextMatch) }
+    @objc func findPrevious(_ sender: Any?) { find(.previousMatch) }
+    @objc func useSelectionForFind(_ sender: Any?) { find(.setSearchString) }
+
     @objc func reload(_ sender: Any?) {
         mergeVC.confirmUnsavedChanges { [self] in mergeVC.load() }
     }

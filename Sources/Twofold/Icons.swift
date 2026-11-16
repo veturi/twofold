@@ -36,6 +36,20 @@ enum Icons {
         return img
     }()
 
+    /// One pane with rows: the Unified layout.
+    static let unifiedLayout: NSImage = {
+        let img = NSImage(size: NSSize(width: 20, height: 16), flipped: true) { _ in
+            NSColor.black.setFill()
+            for y in [1.5, 6.25, 11] as [CGFloat] {
+                NSBezierPath(roundedRect: NSRect(x: 2.5, y: y, width: 15, height: 3.5), xRadius: 1.2, yRadius: 1.2).fill()
+            }
+            return true
+        }
+        img.isTemplate = true
+        img.accessibilityDescription = "Unified"
+        return img
+    }()
+
     private static var tiles: [String: NSImage] = [:]
 
     /// A small rounded tile with a status symbol, used in the folder sidebar.

@@ -40,6 +40,11 @@ enum Theme {
     static let invisible = hex(0xB3B1BA, 0x5D5B65)
     static let textSelection = dynamic(NSColor(hex: 0x8B46F0, alpha: 0.22), NSColor(hex: 0xA673FF, alpha: 0.35))
 
+    // Find
+    static let findMatch = dynamic(NSColor(hex: 0xFFD60A, alpha: 0.45), NSColor(hex: 0xFFD60A, alpha: 0.28))
+    static let findCurrent = dynamic(NSColor(hex: 0xFF9F0A, alpha: 0.75), NSColor(hex: 0xFF9F0A, alpha: 0.62))
+    static let findTick = hex(0xE0A800, 0xD9A400)
+
     // Accent
     static let accent = hex(0x8B46F0, 0x9D63FF)
     static let accentSoft = hex(0xEBE1FD, 0x3A2C57)

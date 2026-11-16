@@ -28,6 +28,7 @@ enum Snapshot {
         if let m = o.imageMode { p.overrides["imageMode"] = m.rawValue }
         if let w = o.wrap { p.overrides["wrapLines"] = w }
         if let s = o.syntax { p.overrides["syntaxHighlighting"] = s }
+        p.overrides["ignoreWhitespace"] = o.ignoreWhitespace
         if let f = o.fontSize { p.overrides["fontSize"] = Double(f) }
         p.overrides["showInvisibles"] = p.showInvisibles
 
@@ -63,6 +64,14 @@ enum Snapshot {
             if o.bench { benchmark(wc.diffVC.canvas) }
             if let c = o.change { wc.diffVC.canvas.goToChange(c, animated: false) }
             if let z = o.zoom { wc.diffVC.imageView.setZoom(z) }
+            if let query = o.find {
+                let began = Date()
+                wc.diffVC.find(query)
+                print(String(format: "find took %.1f ms", Date().timeIntervalSince(began) * 1000))
+                for _ in 0..<o.findNext { wc.diffVC.findStep(forward: true) }
+                let c = wc.diffVC.canvas
+                print("matches: \(c.findMatches.count)  current: \(c.findIndex.map { String($0 + 1) } ?? "none")")
+            }
             let canvas = wc.diffVC.canvas
             @MainActor func settle() async {
                 while wc.isBusy || canvas.hasPendingOps { try? await Task.sleep(for: .milliseconds(20)) }

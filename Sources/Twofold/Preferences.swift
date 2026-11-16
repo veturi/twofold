@@ -1,7 +1,8 @@
 import AppKit
 
-enum LayoutMode: String {
-    case fluid, blocks
+/// Blocks and Fluid show the two sides next to each other; Unified shows them in one column.
+enum LayoutMode: String, CaseIterable {
+    case blocks, fluid, unified
 }
 
 /// How two images are shown. The raw values are also the `--image-mode` arguments.
@@ -64,6 +65,12 @@ final class Preferences {
     var showInvisibles: Bool {
         get { value("showInvisibles") as? Bool ?? true }
         set { set(newValue, "showInvisibles") }
+    }
+
+    /// Compare lines without regard to indentation, trailing whitespace and runs of whitespace.
+    var ignoreWhitespace: Bool {
+        get { value("ignoreWhitespace") as? Bool ?? false }
+        set { set(newValue, "ignoreWhitespace") }
     }
 
     var syntaxHighlighting: Bool {
