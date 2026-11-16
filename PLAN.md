@@ -221,10 +221,10 @@ Sections 1 to 10 describe version 1 as it was planned and built. This section is
 | – | Image diff: side by side, overlay, pixel difference | Shipped |
 | – | Syntax highlighting, 29 languages and formats | Shipped |
 | – | Merge stage 1: copy changes between sides, save, undo | Shipped |
-| 1 | Merge stage 2: edit in place | Next |
-| 2 | Three-way merge, usable as `git mergetool` | Planned |
-| 3 | Unified layout, ignore whitespace, find in pane | Planned |
-| 4 | Mac App Store build | Planned |
+| – | Merge stage 2: edit in place | Shipped |
+| 1 | Three-way merge, usable as `git mergetool` | Next |
+| 2 | Unified layout, ignore whitespace, find in pane | Planned |
+| 3 | Mac App Store build | Planned |
 
 Proportional fonts for prose (section 10) stay unscheduled.
 
@@ -252,6 +252,16 @@ In order:
 Out of this stage: typing, three-way merge, binary and image files.
 
 ### 11.2 Merge stage 2: edit in place
+
+Shipped. As built:
+
+- Typing, deletion, cut, paste, Return with the current line's indentation, and Tab, in either pane of an editable comparison. Caret movement by character, word, line and visual row, with Shift to select. Input methods work through `NSTextInputClient`.
+- The whole file is diffed and tokenized again after every keystroke, off the main thread. Keystrokes that arrive meanwhile wait in a queue and are applied in order, so nothing is lost and nothing runs against stale text. There is no incremental path: on very large files typing lags by the time of one diff (roughly 0.1 s per 100,000 lines).
+- Consecutive keystrokes on one side are one undo step. After undo or redo the caret goes to the end of the lines that changed, not to its exact earlier position.
+- The keyboard edits only after a click has placed a caret; before that the arrow keys and Space scroll, as in v1.
+- Not built: typing into an empty file or a file that exists on one side only, drag and drop of text, multiple carets, and find and replace.
+
+The plan as written:
 
 A caret, typing, deletion, paste and cut in either pane, on top of the document model, undo and save from stage 1. The canvas has selection and copy today but no caret and no text input, so this needs `NSTextInputClient` (including marked text for input methods), caret movement by character, word and line across wrapped rows, and auto-scroll to the caret. Re-diffing on every keystroke is fine for ordinary files and needs debouncing, or an incremental path, for very large ones; the syntax map has to be refreshed the same way.
 

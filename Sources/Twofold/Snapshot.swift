@@ -5,8 +5,8 @@ import AppKit
 ///     Twofold --snapshot out.png [--appearance dark] [--layout blocks] [--size 1360x860] [--change 3] A B
 ///
 /// For two images, `--image-mode side-by-side|overlay|difference` and `--zoom 2` pick the view.
-/// `--copy left|right` copies the current change to that side first; `--undo` then undoes it and
-/// `--save` writes the edited file.
+/// `--copy left|right` copies the current change to that side first. `--caret left:12:4 --type "text\n"`
+/// places the caret and types. `--undo` then undoes the last step and `--save` writes the edited files.
 @MainActor
 enum Snapshot {
     static func run(_ o: LaunchOptions) {
@@ -55,14 +55,29 @@ enum Snapshot {
             if o.bench { benchmark(wc.diffVC.canvas) }
             if let c = o.change { wc.diffVC.canvas.goToChange(c, animated: false) }
             if let z = o.zoom { wc.diffVC.imageView.setZoom(z) }
+            let canvas = wc.diffVC.canvas
+            @MainActor func settle() async {
+                while wc.isBusy || canvas.hasPendingOps { try? await Task.sleep(for: .milliseconds(20)) }
+            }
             if let side = o.copy {
                 wc.diffVC.copyChange(to: side)
-                while wc.isBusy { try? await Task.sleep(for: .milliseconds(20)) }
+                await settle()
+            }
+            if let (side, line, column) = o.caret {
+                window.makeFirstResponder(canvas)
+                canvas.setCaret(side, line: line, column: column)
+                if let text = o.typed { canvas.type(text) }
+                await settle()
+            }
+            if o.copy != nil || o.typed != nil {
                 if o.undo {
                     wc.diffVC.undo.undo()
-                    while wc.isBusy { try? await Task.sleep(for: .milliseconds(20)) }
+                    await settle()
                 }
-                if o.save { print(wc.diffVC.save() ? "saved" : "save failed") }
+                if o.save {
+                    print(wc.diffVC.save() ? "saved" : "save failed")
+                    await settle()
+                }
                 window.layoutIfNeeded()
             }
             capture(window, to: out, scale: o.scale)

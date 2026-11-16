@@ -80,6 +80,25 @@ final class DiffCanvasView: NSView {
 
     private var selection: (side: Side, anchor: TextPos, head: TextPos)?
     private var focusSide: Side = .left
+
+    /// True from the start of a re-diff until its result is shown. Edits wait in `pendingOps` meanwhile.
+    var busy = false {
+        didSet { if !busy { drainOps() } }
+    }
+    private var pendingOps: [() -> Void] = []
+    /// Installed by the next `setDiff`: where the caret belongs once an edit is on screen.
+    private var pendingSelection: (side: Side, anchor: TextPos, head: TextPos)?
+    /// Text an input method is still composing, as a range within one line.
+    private var marked: (side: Side, line: Int, range: Range<Int>)?
+    /// True while consecutive keystrokes should fold into one undo step.
+    private var typingRun = false
+    /// The column vertical movement tries to keep, in view coordinates.
+    private var caretGoalX: CGFloat?
+    private var caretOn = true
+    private var caretTimer: Timer?
+    /// Replaces a range of text on one side. Arguments: side, start, end, new text, and whether this
+    /// continues the previous keystroke. Returns the position after the new text, or nil if refused.
+    var onEdit: ((Side, TextPos, TextPos, String, Bool) -> TextPos?)?
     private var draggingStrip = false
     private var link: CADisplayLink?
     private var scrollTarget: CGFloat?
@@ -138,8 +157,41 @@ final class DiffCanvasView: NSView {
 
     // MARK: Content
 
-    func setDiff(_ d: TextDiff?, columns: [[Int32]], syntax: [SyntaxMap?] = [nil, nil], preserveScroll: Bool) {
+    func setDiff(_ d: TextDiff?, columns: [[Int32]], syntax: [SyntaxMap?] = [nil, nil], edit: LineEdit? = nil, preserveScroll: Bool) {
         let anchor = preserveScroll ? captureAnchor() : nil
+        if let edit, let old = diff, let d {
+            // Folds are remembered by block index, which an edit shifts: keep every run expanded
+            // that overlaps one the user had opened.
+            let opened = expanded.filter { $0 < old.blocks.count }.map { i -> Range<Int> in
+                let r = edit.side == .left ? old.blocks[i].left : old.blocks[i].right
+                let end = r.upperBound >= edit.oldRange.upperBound ? r.upperBound + edit.newCount - edit.oldRange.count
+                    : max(edit.map(r.upperBound), edit.oldRange.lowerBound + edit.newCount)
+                return edit.map(r.lowerBound)..<max(end, edit.map(r.lowerBound))
+            }
+            expanded = Set(d.blocks.indices.filter { i in
+                guard d.blocks[i].kind == .equal else { return false }
+                let r = edit.side == .left ? d.blocks[i].left : d.blocks[i].right
+                return opened.contains { $0.overlaps(r) }
+            })
+            if pendingSelection == nil, let s = selection, s.side == edit.side {
+                func moved(_ p: TextPos) -> TextPos {
+                    edit.oldRange.contains(p.line) ? TextPos(line: edit.map(p.line), offset: 0) : TextPos(line: edit.map(p.line), offset: p.offset)
+                }
+                selection = (s.side, moved(s.anchor), moved(s.head))
+            }
+        }
+        if !preserveScroll {
+            pendingSelection = nil
+            marked = nil
+            typingRun = false
+        }
+        let caretMoved = pendingSelection != nil
+        if let p = pendingSelection {
+            selection = p
+            focusSide = p.side
+            pendingSelection = nil
+        }
+        defer { if caretMoved { scrollCaretIntoView() } }
         diff = d
         self.columns = columns
         self.syntax = syntax
@@ -416,7 +468,7 @@ final class DiffCanvasView: NSView {
         needsDisplay = true
     }
 
-    private func fill(_ ctx: CGContext, _ r: CGRect, _ c: CGColor) {
+    func fill(_ ctx: CGContext, _ r: CGRect, _ c: CGColor) {
         ctx.setFillColor(c)
         ctx.fill(r)
     }
@@ -433,6 +485,7 @@ final class DiffCanvasView: NSView {
             renderPane(ctx, m, side, pulse)
             ctx.restoreGState()
         }
+        renderCaret(ctx)
         renderRibbon(ctx, m)
         renderCopyButtons(ctx, m)
         renderStrip(ctx, m)
@@ -800,6 +853,10 @@ final class DiffCanvasView: NSView {
             } else {
                 selection = (s, pos, pos)
             }
+            typingRun = false
+            marked = nil
+            caretGoalX = nil
+            caretOn = true
             if let change, change != currentChange {
                 currentChange = change
                 onStateChange?()
@@ -895,6 +952,12 @@ final class DiffCanvasView: NSView {
     }
 
     override func keyDown(with e: NSEvent) {
+        // With a caret in an editable comparison the keyboard edits; otherwise it scrolls.
+        if mergeEnabled, selection != nil {
+            caretOn = true
+            interpretKeyEvents([e])
+            return
+        }
         let page = max(40, bounds.height - 60)
         switch e.specialKey {
         case .upArrow?: setScroll(scrollT - metrics.rowHeight * 2)
@@ -948,8 +1011,446 @@ final class DiffCanvasView: NSView {
 extension DiffCanvasView: NSMenuItemValidation {
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item.action == #selector(copy(_:)) { return selectedText != nil }
+        if item.action == #selector(cut(_:)) { return mergeEnabled && selectedText != nil }
+        if item.action == #selector(paste(_:)) { return mergeEnabled && selection != nil && NSPasteboard.general.string(forType: .string) != nil }
         if item.action == #selector(selectAll(_:)) { return model != nil }
         return true
+    }
+}
+
+/// Which lines of one side an edit replaced, so that state tied to line numbers can follow it.
+struct LineEdit {
+    var side: Side
+    var oldRange: Range<Int>
+    var newCount: Int
+
+    /// Where a line index of the old document ends up; lines inside the replaced range collapse to its start.
+    func map(_ line: Int) -> Int {
+        if line < oldRange.lowerBound { return line }
+        if line >= oldRange.upperBound { return line + newCount - oldRange.count }
+        return oldRange.lowerBound
+    }
+}
+
+// MARK: - Editing
+
+/// Typing, deleting, caret movement, cut and paste.
+///
+/// Every operation goes through `perform`, which holds it back while a re-diff is in flight, so each
+/// one runs against the document that is on screen and none is lost when keys arrive faster than diffs.
+extension DiffCanvasView {
+    var hasPendingOps: Bool { !pendingOps.isEmpty }
+
+    func cancelPendingOps() {
+        pendingOps.removeAll()
+        pendingSelection = nil
+        marked = nil
+        typingRun = false
+    }
+
+    func perform(_ op: @escaping () -> Void) {
+        if busy || !pendingOps.isEmpty { pendingOps.append(op) } else { op() }
+    }
+
+    func drainOps() {
+        while !busy, !pendingOps.isEmpty { pendingOps.removeFirst()() }
+    }
+
+    /// Places the caret. Line and column are zero-based; used by snapshot runs.
+    func setCaret(_ side: Side, line: Int, column: Int) {
+        guard let m = model, line < m.lines(side).count else { return }
+        let pos = TextPos(line: line, offset: min(column, lineLength(side, line)))
+        selection = (side, pos, pos)
+        focusSide = side
+        typingRun = false
+        scrollCaretIntoView()
+    }
+
+    /// Types text as the keyboard would, one character at a time. For snapshot runs, the arrows
+    /// ← → ↑ ↓ move the caret and ⌫ deletes backward.
+    func type(_ text: String) {
+        for ch in text {
+            switch ch {
+            case "\n": insertNewline(nil)
+            case "←": moveLeft(nil)
+            case "→": moveRight(nil)
+            case "↑": moveUp(nil)
+            case "↓": moveDown(nil)
+            case "⌫": deleteBackward(nil)
+            default: insertText(String(ch), replacementRange: NSRange(location: NSNotFound, length: 0))
+            }
+        }
+    }
+
+    /// The selection the next diff should install, for edits made outside the canvas such as undo.
+    func selectAfterNextDiff(_ side: Side, _ pos: TextPos) {
+        pendingSelection = (side, pos, pos)
+    }
+
+    // MARK: Positions
+
+    private func lineLength(_ side: Side, _ line: Int) -> Int {
+        guard let m = model, line >= 0, line < m.lines(side).count else { return 0 }
+        return m.lines(side)[line].utf16.count
+    }
+
+    private func isVisible(_ side: Side, _ line: Int) -> Bool {
+        guard let m = model, line >= 0, line < m.lines(side).count else { return false }
+        return m.lineTop[side.rawValue][line] >= 0
+    }
+
+    /// One character back. With `visibleOnly`, a line start steps over folded lines to the line shown above.
+    private func before(_ side: Side, _ p: TextPos, visibleOnly: Bool) -> TextPos {
+        guard let m = model, p.line < m.lines(side).count else { return p }
+        if p.offset > 0 {
+            let s = m.lines(side)[p.line] as NSString
+            return TextPos(line: p.line, offset: s.rangeOfComposedCharacterSequence(at: min(p.offset, s.length) - 1).location)
+        }
+        var l = p.line - 1
+        if visibleOnly { while l >= 0 && !isVisible(side, l) { l -= 1 } }
+        return l >= 0 ? TextPos(line: l, offset: lineLength(side, l)) : p
+    }
+
+    private func after(_ side: Side, _ p: TextPos, visibleOnly: Bool) -> TextPos {
+        guard let m = model, p.line < m.lines(side).count else { return p }
+        let s = m.lines(side)[p.line] as NSString
+        if p.offset < s.length {
+            return TextPos(line: p.line, offset: NSMaxRange(s.rangeOfComposedCharacterSequence(at: p.offset)))
+        }
+        var l = p.line + 1
+        let count = m.lines(side).count
+        if visibleOnly { while l < count && !isVisible(side, l) { l += 1 } }
+        return l < count ? TextPos(line: l, offset: 0) : p
+    }
+
+    private func wordBefore(_ side: Side, _ p: TextPos, visibleOnly: Bool) -> TextPos {
+        guard let m = model, p.line < m.lines(side).count, p.offset > 0 else { return before(side, p, visibleOnly: visibleOnly) }
+        let s = m.lines(side)[p.line] as NSString
+        var i = min(p.offset, s.length)
+        while i > 0 && !isWordChar(s.character(at: i - 1)) { i -= 1 }
+        while i > 0 && isWordChar(s.character(at: i - 1)) { i -= 1 }
+        return TextPos(line: p.line, offset: i)
+    }
+
+    private func wordAfter(_ side: Side, _ p: TextPos, visibleOnly: Bool) -> TextPos {
+        guard let m = model, p.line < m.lines(side).count else { return p }
+        let s = m.lines(side)[p.line] as NSString
+        guard p.offset < s.length else { return after(side, p, visibleOnly: visibleOnly) }
+        var i = p.offset
+        while i < s.length && !isWordChar(s.character(at: i)) { i += 1 }
+        while i < s.length && isWordChar(s.character(at: i)) { i += 1 }
+        return TextPos(line: p.line, offset: i)
+    }
+
+    private func documentEnd(_ side: Side) -> TextPos {
+        guard let m = model else { return TextPos(line: 0, offset: 0) }
+        var l = m.lines(side).count - 1
+        while l > 0 && !isVisible(side, l) { l -= 1 }
+        return TextPos(line: max(l, 0), offset: lineLength(side, max(l, 0)))
+    }
+
+    private func documentStart(_ side: Side) -> TextPos {
+        var l = 0
+        let count = model?.lines(side).count ?? 0
+        while l < count - 1 && !isVisible(side, l) { l += 1 }
+        return TextPos(line: l, offset: 0)
+    }
+
+    /// Where the caret is drawn, in view coordinates, or nil when its line is folded away.
+    func caretRect(_ side: Side, _ pos: TextPos) -> CGRect? {
+        guard let m = model, pos.line >= 0, pos.line < m.lines(side).count else { return nil }
+        let top = m.lineTop[side.rawValue][pos.line]
+        guard top >= 0 else { return nil }
+        let rows = m.rowStarts(side, pos.line)
+        let length = lineLength(side, pos.line)
+        let offset = min(max(pos.offset, 0), length)
+        var r = rows.count - 1
+        while r > 0 && rows[r] > offset { r -= 1 }
+        let rs = rows[r], re = r + 1 < rows.count ? rows[r + 1] : length
+        let x = CTLineGetOffsetForStringIndex(ctline(side, pos.line, r, rs, re), offset - rs, nil)
+        let y = top - sideScroll(side) + Self.topInset + metrics.linePad + CGFloat(r) * metrics.rowHeight
+        return CGRect(x: paneX(side) + textX - hOffset + x, y: y, width: 1.5, height: metrics.rowHeight)
+    }
+
+    /// The position one visual row above or below, keeping the column the movement started in.
+    private func vertical(_ direction: CGFloat, _ side: Side, _ p: TextPos) -> TextPos {
+        scrollCaretIntoView()
+        guard let r = caretRect(side, p) else { return p }
+        let x = caretGoalX ?? r.minX
+        caretGoalX = x
+        var y = r.midY
+        // Step in half rows so nothing is skipped; folds and gaps between sections are stepped over.
+        for _ in 0..<80 {
+            y += direction * metrics.rowHeight / 2
+            if case .text(_, let q, _) = hit(CGPoint(x: x, y: y), side: side),
+               let qr = caretRect(side, q), abs(qr.minY - r.minY) > 0.5, (qr.minY - r.minY) * direction > 0 {
+                return q
+            }
+        }
+        return p
+    }
+
+    func scrollCaretIntoView() {
+        guard let s = selection else { return }
+        for _ in 0..<3 {
+            guard let r = caretRect(s.side, s.head) else { break }
+            if r.minY < 6 { scrollT -= 6 - r.minY } else if r.maxY > bounds.height - 6 { scrollT += r.maxY - bounds.height + 6 } else { break }
+            clampScroll()
+        }
+        if !wrapLines, let r = caretRect(s.side, s.head) {
+            let left = paneX(s.side) + textX, right = paneX(s.side) + paneWidth - 24
+            if r.minX < left { hOffset -= left - r.minX } else if r.minX > right { hOffset += r.minX - right }
+            clampScroll()
+        }
+        needsDisplay = true
+    }
+
+    // MARK: Caret drawing
+
+    func renderCaret(_ ctx: CGContext) {
+        guard mergeEnabled, window?.firstResponder === self, let s = selection else { return }
+        ctx.saveGState()
+        ctx.clip(to: CGRect(x: paneX(s.side) + gutterWidth, y: 0, width: paneWidth - gutterWidth, height: bounds.height))
+        if let m = marked, m.side == s.side,
+           let a = caretRect(m.side, TextPos(line: m.line, offset: m.range.lowerBound)),
+           let b = caretRect(m.side, TextPos(line: m.line, offset: m.range.upperBound)), a.minY == b.minY {
+            fill(ctx, CGRect(x: a.minX, y: a.maxY - 2, width: b.minX - a.minX, height: 1), pal.text)
+        }
+        if s.anchor == s.head, caretOn, let r = caretRect(s.side, s.head) { fill(ctx, r, pal.text) }
+        ctx.restoreGState()
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        caretOn = true
+        caretTimer?.invalidate()
+        caretTimer = Timer.scheduledTimer(withTimeInterval: 0.55, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.mergeEnabled, let s = self.selection, s.anchor == s.head else { return }
+                self.caretOn.toggle()
+                self.needsDisplay = true
+            }
+        }
+        needsDisplay = true
+        return true
+    }
+
+    override func resignFirstResponder() -> Bool {
+        caretTimer?.invalidate()
+        caretTimer = nil
+        needsDisplay = true
+        return true
+    }
+
+    // MARK: Changing text
+
+    /// Replaces a range on one side through the owner, which answers with the position after the new text.
+    @discardableResult
+    private func edit(_ side: Side, _ a: TextPos, _ b: TextPos, _ text: String, coalesce: Bool) -> TextPos? {
+        guard mergeEnabled, let end = onEdit?(side, a, b, text, coalesce && typingRun) else { return nil }
+        pendingSelection = (side, end, end)
+        typingRun = coalesce
+        caretGoalX = nil
+        caretOn = true
+        return end
+    }
+
+    /// The range new text should replace: text being composed, a range the input system names within
+    /// the caret's line, or the selection.
+    private func editRange(_ replacement: NSRange) -> (Side, TextPos, TextPos)? {
+        guard let s = selection else { return nil }
+        if let m = marked, m.side == s.side {
+            return (s.side, TextPos(line: m.line, offset: m.range.lowerBound), TextPos(line: m.line, offset: m.range.upperBound))
+        }
+        if replacement.location != NSNotFound {
+            let length = lineLength(s.side, s.head.line)
+            let a = min(replacement.location, length), b = min(NSMaxRange(replacement), length)
+            return (s.side, TextPos(line: s.head.line, offset: a), TextPos(line: s.head.line, offset: b))
+        }
+        return (s.side, min(s.anchor, s.head), max(s.anchor, s.head))
+    }
+
+    private func replaceSelection(with text: String, coalesce: Bool = false) {
+        perform { [self] in
+            guard let (side, a, b) = editRange(NSRange(location: NSNotFound, length: 0)) else { return }
+            marked = nil
+            edit(side, a, b, text, coalesce: coalesce && a == b)
+        }
+    }
+
+    private func delete(coalesce: Bool = false, to target: @escaping (Side, TextPos) -> TextPos) {
+        perform { [self] in
+            guard let s = selection else { return }
+            marked = nil
+            if s.anchor != s.head {
+                edit(s.side, min(s.anchor, s.head), max(s.anchor, s.head), "", coalesce: false)
+            } else {
+                let t = target(s.side, s.head)
+                if t != s.head { edit(s.side, min(t, s.head), max(t, s.head), "", coalesce: coalesce) }
+            }
+        }
+    }
+
+    private func moveCaret(extend: Bool, keepColumn: Bool = false, _ target: @escaping (Side, TextPos) -> TextPos) {
+        perform { [self] in
+            guard let s = selection else { return }
+            if !keepColumn { caretGoalX = nil }
+            let t = target(s.side, s.head)
+            selection = (s.side, extend ? s.anchor : t, t)
+            typingRun = false
+            marked = nil
+            caretOn = true
+            scrollCaretIntoView()
+        }
+    }
+
+    /// Left and right collapse a selection to its edge instead of moving past it.
+    private func moveHorizontally(_ forward: Bool, extend: Bool) {
+        moveCaret(extend: extend) { [self] side, p in
+            if !extend, let s = selection, s.anchor != s.head { return forward ? max(s.anchor, s.head) : min(s.anchor, s.head) }
+            return forward ? after(side, p, visibleOnly: true) : before(side, p, visibleOnly: true)
+        }
+    }
+
+    override func moveLeft(_ sender: Any?) { moveHorizontally(false, extend: false) }
+    override func moveRight(_ sender: Any?) { moveHorizontally(true, extend: false) }
+    override func moveBackward(_ sender: Any?) { moveHorizontally(false, extend: false) }
+    override func moveForward(_ sender: Any?) { moveHorizontally(true, extend: false) }
+    override func moveLeftAndModifySelection(_ sender: Any?) { moveHorizontally(false, extend: true) }
+    override func moveRightAndModifySelection(_ sender: Any?) { moveHorizontally(true, extend: true) }
+    override func moveUp(_ sender: Any?) { moveCaret(extend: false, keepColumn: true) { [self] in vertical(-1, $0, $1) } }
+    override func moveDown(_ sender: Any?) { moveCaret(extend: false, keepColumn: true) { [self] in vertical(1, $0, $1) } }
+    override func moveUpAndModifySelection(_ sender: Any?) { moveCaret(extend: true, keepColumn: true) { [self] in vertical(-1, $0, $1) } }
+    override func moveDownAndModifySelection(_ sender: Any?) { moveCaret(extend: true, keepColumn: true) { [self] in vertical(1, $0, $1) } }
+    override func moveWordLeft(_ sender: Any?) { moveCaret(extend: false) { [self] in wordBefore($0, $1, visibleOnly: true) } }
+    override func moveWordRight(_ sender: Any?) { moveCaret(extend: false) { [self] in wordAfter($0, $1, visibleOnly: true) } }
+    override func moveWordLeftAndModifySelection(_ sender: Any?) { moveCaret(extend: true) { [self] in wordBefore($0, $1, visibleOnly: true) } }
+    override func moveWordRightAndModifySelection(_ sender: Any?) { moveCaret(extend: true) { [self] in wordAfter($0, $1, visibleOnly: true) } }
+
+    private func lineStart(_ extend: Bool) { moveCaret(extend: extend) { _, p in TextPos(line: p.line, offset: 0) } }
+    private func lineEnd(_ extend: Bool) { moveCaret(extend: extend) { [self] side, p in TextPos(line: p.line, offset: lineLength(side, p.line)) } }
+    override func moveToBeginningOfLine(_ sender: Any?) { lineStart(false) }
+    override func moveToEndOfLine(_ sender: Any?) { lineEnd(false) }
+    override func moveToLeftEndOfLine(_ sender: Any?) { lineStart(false) }
+    override func moveToRightEndOfLine(_ sender: Any?) { lineEnd(false) }
+    override func moveToBeginningOfParagraph(_ sender: Any?) { lineStart(false) }
+    override func moveToEndOfParagraph(_ sender: Any?) { lineEnd(false) }
+    override func moveToBeginningOfLineAndModifySelection(_ sender: Any?) { lineStart(true) }
+    override func moveToEndOfLineAndModifySelection(_ sender: Any?) { lineEnd(true) }
+    override func moveToLeftEndOfLineAndModifySelection(_ sender: Any?) { lineStart(true) }
+    override func moveToRightEndOfLineAndModifySelection(_ sender: Any?) { lineEnd(true) }
+    override func moveToBeginningOfDocument(_ sender: Any?) { moveCaret(extend: false) { [self] side, _ in documentStart(side) } }
+    override func moveToEndOfDocument(_ sender: Any?) { moveCaret(extend: false) { [self] side, _ in documentEnd(side) } }
+    override func moveToBeginningOfDocumentAndModifySelection(_ sender: Any?) { moveCaret(extend: true) { [self] side, _ in documentStart(side) } }
+    override func moveToEndOfDocumentAndModifySelection(_ sender: Any?) { moveCaret(extend: true) { [self] side, _ in documentEnd(side) } }
+
+    override func deleteBackward(_ sender: Any?) { delete(coalesce: true) { [self] in before($0, $1, visibleOnly: false) } }
+    override func deleteForward(_ sender: Any?) { delete(coalesce: true) { [self] in after($0, $1, visibleOnly: false) } }
+    override func deleteWordBackward(_ sender: Any?) { delete { [self] in wordBefore($0, $1, visibleOnly: false) } }
+    override func deleteWordForward(_ sender: Any?) { delete { [self] in wordAfter($0, $1, visibleOnly: false) } }
+    override func deleteToBeginningOfLine(_ sender: Any?) { delete { _, p in TextPos(line: p.line, offset: 0) } }
+    override func deleteToEndOfLine(_ sender: Any?) { delete { [self] side, p in TextPos(line: p.line, offset: lineLength(side, p.line)) } }
+    override func deleteToEndOfParagraph(_ sender: Any?) { deleteToEndOfLine(sender) }
+
+    /// A new line starts with the indentation of the one it was broken from.
+    override func insertNewline(_ sender: Any?) {
+        perform { [self] in
+            guard let (side, a, b) = editRange(NSRange(location: NSNotFound, length: 0)), let m = model, a.line < m.lines(side).count else { return }
+            marked = nil
+            let line = m.lines(side)[a.line] as NSString
+            var indent = 0
+            while indent < a.offset && indent < line.length && (line.character(at: indent) == 32 || line.character(at: indent) == 9) { indent += 1 }
+            edit(side, a, b, "\n" + line.substring(to: indent), coalesce: false)
+        }
+    }
+
+    override func insertLineBreak(_ sender: Any?) { insertNewline(sender) }
+    override func insertTab(_ sender: Any?) { replaceSelection(with: "\t", coalesce: true) }
+    override func insertBacktab(_ sender: Any?) {}
+    override func cancelOperation(_ sender: Any?) {}
+
+    override func pageUp(_ sender: Any?) { setScroll(scrollT - max(40, bounds.height - 60)) }
+    override func pageDown(_ sender: Any?) { setScroll(scrollT + max(40, bounds.height - 60)) }
+    override func scrollPageUp(_ sender: Any?) { pageUp(sender) }
+    override func scrollPageDown(_ sender: Any?) { pageDown(sender) }
+    override func scrollToBeginningOfDocument(_ sender: Any?) { setScroll(0) }
+    override func scrollToEndOfDocument(_ sender: Any?) { setScroll(.greatestFiniteMagnitude) }
+
+    @objc func cut(_ sender: Any?) {
+        guard mergeEnabled, selectedText != nil else { return }
+        copy(sender)
+        replaceSelection(with: "")
+    }
+
+    @objc func paste(_ sender: Any?) {
+        guard mergeEnabled, let text = NSPasteboard.general.string(forType: .string) else { return }
+        replaceSelection(with: text)
+    }
+}
+
+// MARK: - Text input
+
+/// Keyboard text and input methods. The input system sees one line at a time: every range it is given
+/// or hands back is in UTF-16 offsets within the caret's line.
+extension DiffCanvasView: @preconcurrency NSTextInputClient {
+    func insertText(_ string: Any, replacementRange: NSRange) {
+        let text = (string as? String) ?? (string as? NSAttributedString)?.string ?? ""
+        perform { [self] in
+            guard let (side, a, b) = editRange(replacementRange) else { return }
+            marked = nil
+            edit(side, a, b, text, coalesce: text.count == 1 && a == b)
+        }
+    }
+
+    /// Text still being composed is put into the document straight away and replaced as it changes.
+    func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
+        let text = (string as? String) ?? (string as? NSAttributedString)?.string ?? ""
+        perform { [self] in
+            guard let (side, a, b) = editRange(replacementRange), edit(side, a, b, text, coalesce: true) != nil else { return }
+            let length = text.utf16.count
+            marked = length == 0 ? nil : (side, a.line, a.offset..<(a.offset + length))
+            let caret = TextPos(line: a.line, offset: a.offset + min(max(selectedRange.location, 0), length))
+            pendingSelection = (side, caret, caret)
+        }
+    }
+
+    func unmarkText() {
+        perform { [self] in
+            marked = nil
+            needsDisplay = true
+        }
+    }
+
+    func selectedRange() -> NSRange {
+        guard let s = selection else { return NSRange(location: NSNotFound, length: 0) }
+        let a = min(s.anchor, s.head), b = max(s.anchor, s.head)
+        return a.line == b.line ? NSRange(location: a.offset, length: b.offset - a.offset) : NSRange(location: s.head.offset, length: 0)
+    }
+
+    func markedRange() -> NSRange {
+        marked.map { NSRange(location: $0.range.lowerBound, length: $0.range.count) } ?? NSRange(location: NSNotFound, length: 0)
+    }
+
+    func hasMarkedText() -> Bool { marked != nil }
+
+    func attributedSubstring(forProposedRange range: NSRange, actualRange: NSRangePointer?) -> NSAttributedString? {
+        guard let s = selection, let m = model, s.head.line < m.lines(s.side).count else { return nil }
+        let line = m.lines(s.side)[s.head.line] as NSString
+        let clipped = NSIntersectionRange(range, NSRange(location: 0, length: line.length))
+        actualRange?.pointee = clipped
+        return NSAttributedString(string: line.substring(with: clipped))
+    }
+
+    func validAttributesForMarkedText() -> [NSAttributedString.Key] { [] }
+
+    func firstRect(forCharacterRange range: NSRange, actualRange: NSRangePointer?) -> NSRect {
+        guard let s = selection, let r = caretRect(s.side, TextPos(line: s.head.line, offset: range.location)), let window else { return .zero }
+        return window.convertToScreen(convert(r, to: nil))
+    }
+
+    func characterIndex(for point: NSPoint) -> Int { NSNotFound }
+
+    override func doCommand(by selector: Selector) {
+        if responds(to: selector) { perform(selector, with: nil) }
     }
 }
 

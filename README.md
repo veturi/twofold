@@ -11,6 +11,7 @@ It compares two text files or two images side by side, or two folders with a sid
 - Word-level highlights inside modified lines, refined to characters where only part of a word changed.
 - Unchanged runs fold into "N Unchanged Lines"; click to expand.
 - Soft wrapping, line-end marks in changed lines, an overview strip of every change, and animated next/previous change navigation.
+- **Edit in place.** Click in either pane and type, paste, cut or delete. The diff updates as you go.
 - **Copy changes across.** Copy any change to the other side with the arrows on it or ⌥⌘→ / ⌥⌘←, undo with ⌘Z, save with ⌘S. Saving rewrites only the lines you changed: the encoding, each line's line ending and whether the file ends with a newline stay as they were.
 - **Syntax highlighting** on top of the change colours, for Swift, C, C++, Objective-C, Java, Kotlin, C#, Scala, Dart, JavaScript, TypeScript, Python, Ruby, Go, Rust, PHP, shell, SQL, Lua, HTML, XML, CSS, JSON, YAML, TOML, INI, Markdown, Makefile and Dockerfile. The language comes from the file name or a `#!` line.
 - **Image diff.** Two images open side by side, as an overlay you can fade from one to the other, or as a difference view that highlights every changed pixel and outlines the changed regions. Zoom and pan apply to both sides at once.
@@ -63,6 +64,7 @@ Then `git difftool` compares files one by one, and `git difftool -d` compares wh
 | ⌘↓ / ⌘↑ | Next / previous change |
 | ⌥⌘↓ / ⌥⌘↑ | Next / previous file (folders) |
 | ⌥⌘→ / ⌥⌘← | Copy the current change to the right / left |
+| ⌘X / ⌘C / ⌘V | Cut / copy / paste |
 | ⌘Z / ⇧⌘Z | Undo / redo |
 | ⌘S | Save edited files |
 | ⌘1 / ⌘2 | Blocks / Fluid layout |
@@ -79,7 +81,9 @@ Then `git difftool` compares files one by one, and `git difftool -d` compares wh
 
 You can also drop two files or two folders on the Dock icon or on any window.
 
-Copying changes edits the comparison in memory; nothing touches the disk until you save, and an edited side is marked "Edited" in its path bar. Twofold asks before closing, reloading, swapping sides or switching files with unsaved changes. If a file you have edited changes on disk, it asks whether to keep your changes or reload. Typing in the panes is not supported yet.
+Typing and copying changes edit the comparison in memory; nothing touches the disk until you save, and an edited side is marked "Edited" in its path bar. Twofold asks before closing, reloading, swapping sides or switching files with unsaved changes. If a file you have edited changes on disk, it asks whether to keep your changes or reload.
+
+Once you have clicked in a pane, the keyboard edits there: arrow keys move the caret (with ⇧ to select, ⌥ by word, ⌘←/⌘→ to the ends of the line), Return keeps the line's indentation, and Space types a space. Before you click, the arrow keys and Space scroll as they always did. Files that exist on one side only, binary files and images are not editable.
 
 Images are whatever macOS can decode (PNG, JPEG, HEIC, TIFF, GIF, WebP and more); the first frame is used for animated and multi-page files. They are compared pixel by pixel from their top-left corners, so two images of different sizes differ wherever only one of them has visible pixels. Scroll or drag to pan, pinch to zoom, and double-click to switch between fit and actual size.
 
@@ -99,7 +103,7 @@ The app can render a window offscreen to a PNG, which is how the UI is checked w
 ```sh
 build/Twofold.app/Contents/MacOS/Twofold --snapshot out.png [--appearance dark] [--layout blocks] [--size 1360x860] [--change 3] [--scale 2] [--bench] \
   [--image-mode side-by-side|overlay|difference] [--zoom 2] [--syntax|--no-syntax] \
-  [--copy left|right] [--undo] [--save] A B
+  [--copy left|right] [--caret left:12:4] [--type "text"] [--undo] [--save] A B
 ```
 
 `--bench` also prints frame render times while scrolling.

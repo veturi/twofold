@@ -73,6 +73,58 @@ final class TextDocumentTests: XCTestCase {
         XCTAssertEqual(text(TextDocument.empty.replacingLines(0..<0, with: ["a", "b"], endsWithTerminator: false)), "a\nb")
     }
 
+    func testReplacingText() {
+        let doc = TextDocument(text: "alpha\r\nbeta\r\ngamma")
+        func edit(_ a: (Int, Int), _ b: (Int, Int), _ s: String) -> (String, Int, Int) {
+            let r = doc.replacingText(from: a, to: b, with: s)
+            return (text(r.document), r.end.line, r.end.offset)
+        }
+        XCTAssertTrue(edit((0, 2), (0, 2), "X") == ("alXpha\r\nbeta\r\ngamma", 0, 3))
+        XCTAssertTrue(edit((0, 5), (0, 5), "\n") == ("alpha\r\n\r\nbeta\r\ngamma", 1, 0))          // new lines take the file's style
+        XCTAssertTrue(edit((0, 3), (2, 2), "") == ("alpmma", 0, 3))                              // joins across lines
+        XCTAssertTrue(edit((1, 0), (1, 4), "one\ntwo") == ("alpha\r\none\r\ntwo\r\ngamma", 2, 3))
+        XCTAssertTrue(edit((2, 5), (2, 5), "\n") == ("alpha\r\nbeta\r\ngamma\r\n", 3, 0))           // a break at the very end
+        XCTAssertTrue(edit((0, 5), (1, 0), "") == ("alphabeta\r\ngamma", 0, 5))                  // deleting a line break
+        // An empty document can be typed into.
+        let typed = TextDocument.empty.replacingText(from: (0, 0), to: (0, 0), with: "a\nb")
+        XCTAssertEqual(text(typed.document), "a\nb")
+        XCTAssertTrue(typed.end == (1, 1))
+        XCTAssertEqual(TextDocument.pieces(of: "a\r\nb\rc\n"), ["a", "b", "c", ""])
+    }
+
+    /// Random edits on the line model give the same bytes as the same edits on a flat string.
+    func testReplacingTextMatchesStringEditing() {
+        var rng = SystemRandomNumberGenerator()
+        let pieces = ["a", "bc", " ", "\n", "é", "👍", "x y", "\n\n"]
+        for _ in 0..<1500 {
+            var flat = (0..<Int.random(in: 0...10, using: &rng)).map { _ in pieces.randomElement(using: &rng)! }.joined()
+            var doc = TextDocument(text: flat)
+            for _ in 0..<4 where !doc.lines.isEmpty {
+                // Line starts as offsets into the flat text; every terminator here is one LF.
+                var starts = [0]
+                for line in doc.lines { starts.append(starts[starts.count - 1] + line.utf16.count + 1) }
+                let l1 = Int.random(in: 0..<doc.lines.count, using: &rng), l2 = Int.random(in: l1..<doc.lines.count, using: &rng)
+                func boundary(_ line: Int) -> Int {
+                    // A random offset that does not split a surrogate pair.
+                    let ns = doc.lines[line] as NSString
+                    let o = Int.random(in: 0...ns.length, using: &rng)
+                    return o < ns.length ? ns.rangeOfComposedCharacterSequence(at: o).location : o
+                }
+                var o1 = boundary(l1), o2 = boundary(l2)
+                if l1 == l2 && o1 > o2 { swap(&o1, &o2) }
+                let insert = (0..<Int.random(in: 0...3, using: &rng)).map { _ in pieces.randomElement(using: &rng)! }.joined()
+                let ns = NSMutableString(string: flat)
+                let endsOpen = !doc.endsWithTerminator
+                ns.replaceCharacters(in: NSRange(location: starts[l1] + o1, length: starts[l2] + o2 - starts[l1] - o1), with: insert)
+                flat = ns as String
+                doc = doc.replacingText(from: (l1, o1), to: (l2, o2), with: insert).document
+                XCTAssertEqual(text(doc), flat)
+                XCTAssertEqual(doc.endsWithTerminator, !endsOpen)
+                XCTAssertFalse(doc.terminators.dropLast().contains(.none))
+            }
+        }
+    }
+
     func testCopyingAChangeMakesTheSidesEqual() {
         var rng = SystemRandomNumberGenerator()
         let alphabet = ["a", "b", "c", "d", "e", ""]

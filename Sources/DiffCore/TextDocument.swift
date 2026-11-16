@@ -240,4 +240,57 @@ public struct TextDocument: Sendable {
 
     /// True when the last line ends with a line break (or there are no lines to end).
     public var endsWithTerminator: Bool { terminators.last.map { $0 != .none } ?? true }
+    /// Splits text on LF, CRLF and CR. Always returns at least one piece; a trailing break gives a final empty one.
+    public static func pieces(of text: String) -> [String] {
+        var out: [String] = []
+        var current = String.UnicodeScalarView()
+        var previousWasCR = false
+        for scalar in text.unicodeScalars {
+            if scalar == "\n" {
+                if !previousWasCR {
+                    out.append(String(current))
+                    current = String.UnicodeScalarView()
+                }
+                previousWasCR = false
+            } else if scalar == "\r" {
+                out.append(String(current))
+                current = String.UnicodeScalarView()
+                previousWasCR = true
+            } else {
+                current.append(scalar)
+                previousWasCR = false
+            }
+        }
+        out.append(String(current))
+        return out
+    }
+
+    /// Replaces the text between two positions (line index and UTF-16 offset) and returns where the
+    /// inserted text ends. The line the range ends on keeps its terminator; lines created by line
+    /// breaks in `text` take this document's style.
+    public func replacingText(
+        from start: (line: Int, offset: Int), to end: (line: Int, offset: Int), with text: String
+    ) -> (document: TextDocument, end: (line: Int, offset: Int)) {
+        var newLines = Self.pieces(of: text)
+        guard !lines.isEmpty else {
+            let doc = replacingLines(0..<0, with: newLines, endsWithTerminator: false)
+            return (doc, (newLines.count - 1, newLines[newLines.count - 1].utf16.count))
+        }
+        let a = min(max(start.line, 0), lines.count - 1), b = min(max(end.line, a), lines.count - 1)
+        let first = lines[a] as NSString, last = lines[b] as NSString
+        let from = min(max(start.offset, 0), first.length)
+        let to = min(max(end.offset, a == b ? from : 0), last.length)
+        newLines[0] = first.substring(to: from) + newLines[0]
+        let endOffset = newLines[newLines.count - 1].utf16.count
+        newLines[newLines.count - 1] += last.substring(from: to)
+
+        var doc = self
+        var newTerminators = [LineTerminator](repeating: preferredTerminator, count: newLines.count)
+        newTerminators[newLines.count - 1] = terminators[b]
+        doc.lines.replaceSubrange(a...b, with: newLines)
+        doc.terminators.replaceSubrange(a...b, with: newTerminators)
+        doc.lineEnding = Self.summary(doc.terminators)
+        return (doc, (a + newLines.count - 1, endOffset))
+    }
+
 }

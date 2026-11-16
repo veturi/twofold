@@ -50,6 +50,7 @@
           "Word- and character-level highlights inside changed lines",
           "Syntax highlighting for 29 languages and formats",
           "Copy changes from one side to the other, with undo and save",
+          "Edit in place: type, paste and delete in either pane",
           "Folder comparison with a sidebar of changed, added and removed files",
           "Image comparison with side-by-side, overlay and pixel difference views",
           "Works as git difftool, including whole-tree comparisons",
@@ -90,9 +91,9 @@
           { "@type": "Question", "name": "How do I use Twofold as my git difftool?",
             "acceptedAnswer": { "@type": "Answer", "text": "Install the twofold command with make install, then run: git config --global diff.tool twofold; git config --global difftool.twofold.cmd 'twofold --wait \"$LOCAL\" \"$REMOTE\"'; git config --global difftool.prompt false. Use git difftool --dir-diff to compare whole trees in one window." } },
           { "@type": "Question", "name": "Can Twofold merge or edit files?",
-            "acceptedAnswer": { "@type": "Answer", "text": "Partly. You can copy any change from one side to the other, undo it, and save the file; the rest of the file is written back exactly as it was. Typing in place is next on the roadmap, then three-way merge for git mergetool." } },
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes, for two files. You can type, paste and delete in either pane, copy any change from one side to the other, undo, and save; the rest of the file is written back exactly as it was. Three-way merge is next on the roadmap, for git mergetool." } },
           { "@type": "Question", "name": "Is Twofold a good Kaleidoscope alternative?",
-            "acceptedAnswer": { "@type": "Answer", "text": "If you mainly read diffs of text files, images and folders, yes: Twofold is native, polished and free, while Kaleidoscope is sold as a subscription. Kaleidoscope still does more, including editing in place and three-way merge." } },
+            "acceptedAnswer": { "@type": "Answer", "text": "If you mainly read diffs of text files, images and folders, yes: Twofold is native, polished and free, while Kaleidoscope is sold as a subscription. Kaleidoscope still does more, including three-way merge." } },
           { "@type": "Question", "name": "Does Twofold collect any data?",
             "acceptedAnswer": { "@type": "Answer", "text": "No. The app has no telemetry, no account and no license server. It never sends your files anywhere." } },
           { "@type": "Question", "name": "Why does macOS warn me when I first open Twofold?",
@@ -291,6 +292,7 @@
         <li class="flex gap-3"><span class="text-brand">✓</span> Image diff: side by side, overlay and pixel difference</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Syntax highlighting for 29 languages and formats</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Copy changes across, undo, and save</li>
+        <li class="flex gap-3"><span class="text-brand">✓</span> Edit in place: type, paste and delete in either pane</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Unchanged runs fold away; click to expand</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Soft wrapping and visible line endings</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Overview strip with every change at a glance</li>
@@ -372,7 +374,7 @@
               </tr>
               <tr>
                 <td class="px-5 py-4 font-medium">Merge &amp; edit</td>
-                <td class="bg-brand/5 px-5 py-4"><span class="text-add">● Copy changes</span><br><span class="text-zinc-500">Editing on the roadmap</span></td>
+                <td class="bg-brand/5 px-5 py-4"><span class="text-add">● Yes</span></td>
                 <td class="px-5 py-4 text-add">● Yes</td>
                 <td class="px-5 py-4 text-add">● Yes</td>
                 <td class="px-5 py-4 text-add">● Yes</td>
@@ -408,8 +410,8 @@
       <p class="mx-auto mt-6 max-w-2xl text-lg text-zinc-600 dark:text-zinc-400">
         Twofold isn't trying to be a git client or a do-everything merge suite. It does one thing:
         shows you what changed between two files or two folders, beautifully and instantly. It's a
-        lightweight tool you'll actually enjoy opening. You can copy changes across and save them;
-        editing in place is next.
+        lightweight tool you'll actually enjoy opening. You can fix what you see right there: edit
+        either side, copy changes across, and save.
       </p>
     </section>
 
@@ -471,13 +473,13 @@
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-add"></span>
             <div><h3 class="font-semibold">Copy changes &amp; save: shipped</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Copy a change to the other side, undo, and save without touching the rest of the file.</p></div>
           </div>
+          <div class="flex gap-4 rounded-2xl border border-add/30 bg-add/5 p-6">
+            <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-add"></span>
+            <div><h3 class="font-semibold">Edit in place: shipped</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Type, paste and delete in either pane.</p></div>
+          </div>
           <div class="flex gap-4 rounded-2xl border border-brand/30 bg-brand/5 p-6">
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-brand"></span>
-            <div><h3 class="font-semibold">Edit in place: next</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Type, paste and delete in either pane.</p></div>
-          </div>
-          <div class="flex gap-4 rounded-2xl border border-black/5 p-6 dark:border-white/10">
-            <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full border-2 border-brand"></span>
-            <div><h3 class="font-semibold">Three-way merge</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Resolve git conflicts as <code class="font-mono">git mergetool</code>.</p></div>
+            <div><h3 class="font-semibold">Three-way merge: next</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Resolve git conflicts as <code class="font-mono">git mergetool</code>.</p></div>
           </div>
           <div class="flex gap-4 rounded-2xl border border-black/5 p-6 dark:border-white/10">
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full border-2 border-brand"></span>
@@ -565,11 +567,11 @@ git config --global difftool.prompt false</code></pre>
           </details>
           <details class="group py-5">
             <summary class="cursor-pointer list-none text-lg font-semibold">Can Twofold merge or edit files?</summary>
-            <p class="mt-3 text-zinc-600 dark:text-zinc-400">Partly. You can copy any change from one side to the other, undo it, and save the file; the rest of the file is written back exactly as it was. Typing in place is next on the roadmap, then three-way merge for <code class="font-mono text-sm">git mergetool</code>.</p>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">Yes, for two files. You can type, paste and delete in either pane, copy any change from one side to the other, undo, and save; the rest of the file is written back exactly as it was. Three-way merge is next on the roadmap, for <code class="font-mono text-sm">git mergetool</code>.</p>
           </details>
           <details class="group py-5">
             <summary class="cursor-pointer list-none text-lg font-semibold">Is Twofold a good Kaleidoscope alternative?</summary>
-            <p class="mt-3 text-zinc-600 dark:text-zinc-400">If you mainly read diffs of text files, images and folders, yes: Twofold is native, polished and free, while Kaleidoscope is sold as a subscription. Kaleidoscope still does more, including editing in place and three-way merge. <a href="/kaleidoscope-alternative/" class="text-brand hover:underline">The full comparison</a>.</p>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">If you mainly read diffs of text files, images and folders, yes: Twofold is native, polished and free, while Kaleidoscope is sold as a subscription. Kaleidoscope still does more, including three-way merge. <a href="/kaleidoscope-alternative/" class="text-brand hover:underline">The full comparison</a>.</p>
           </details>
           <details class="group py-5">
             <summary class="cursor-pointer list-none text-lg font-semibold">Does Twofold collect any data?</summary>

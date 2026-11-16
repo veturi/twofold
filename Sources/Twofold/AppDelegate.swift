@@ -14,6 +14,9 @@ struct LaunchOptions {
     var copy: Side?
     var save = false
     var undo = false
+    /// Snapshot runs only: place the caret ("left:12:4", one-based line and column) and type text.
+    var caret: (Side, Int, Int)?
+    var typed: String?
     var size = CGSize(width: 1360, height: 860)
     var change: Int?
     var fontSize: CGFloat?
@@ -41,6 +44,12 @@ struct LaunchOptions {
             case "--copy": o.copy = next().flatMap { $0 == "left" ? .left : ($0 == "right" ? .right : nil) }
             case "--save": o.save = true
             case "--undo": o.undo = true
+            case "--caret":
+                let parts = (next() ?? "").split(separator: ":")
+                if parts.count == 3, let line = Int(parts[1]), let column = Int(parts[2]) {
+                    o.caret = (parts[0] == "right" ? .right : .left, line - 1, column - 1)
+                }
+            case "--type": o.typed = next()?.replacingOccurrences(of: "\\n", with: "\n").replacingOccurrences(of: "\\t", with: "\t")
             case "--syntax": o.syntax = true
             case "--no-syntax": o.syntax = false
             case "--bench": o.bench = true
@@ -284,7 +293,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             item("Undo", #selector(ComparisonWindowController.undoEdit(_:)), "z"),
             item("Redo", #selector(ComparisonWindowController.redoEdit(_:)), "z", [.command, .shift]),
             .separator(),
+            item("Cut", #selector(DiffCanvasView.cut(_:)), "x"),
             item("Copy", #selector(DiffCanvasView.copy(_:)), "c"),
+            item("Paste", #selector(DiffCanvasView.paste(_:)), "v"),
             item("Select All", #selector(NSResponder.selectAll(_:)), "a"),
         ])
         let appearance = NSMenu(title: "Appearance")

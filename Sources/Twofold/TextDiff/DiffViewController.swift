@@ -31,6 +31,10 @@ final class DiffViewController: NSViewController {
     /// What each file looked like on disk when it was last read or written here.
     private var stamps: [FileStamp?] = [nil, nil]
     let undo = UndoManager()
+    /// The side whose latest undo step is a run of typing that further keystrokes may join.
+    private var typingSide: Int?
+    /// What the re-diff in flight changed, for the canvas to carry folds and the selection across.
+    private var pendingEdit: LineEdit?
     /// Called when a side becomes edited or clean.
     var onEditStateChange: (() -> Void)?
     var onSave: (() -> Void)?
@@ -80,6 +84,7 @@ final class DiffViewController: NSViewController {
         }
         canvas.onStateChange = { [weak self] in self?.updateChangeLabel() }
         canvas.onCopy = { [weak self] side in self?.copyChange(to: side) }
+        canvas.onEdit = { [weak self] side, a, b, text, coalesce in self?.replaceText(side, a, b, text, coalesce: coalesce) }
         imageView.onStateChange = { [weak self] in
             self?.updatePathBarGeometry()
             self?.updateChangeLabel()
@@ -154,6 +159,9 @@ final class DiffViewController: NSViewController {
         generation += 1
         let gen = generation
         isLoading = true
+        pendingEdit = nil
+        canvas.cancelPendingOps()
+        canvas.busy = true
         watcher?.invalidate()
         watcher = nil
         Task { [weak self] in
@@ -182,9 +190,12 @@ final class DiffViewController: NSViewController {
         docs = [.empty, .empty]
         stamps = [nil, nil]
         resetEdits()
+        pendingEdit = nil
+        canvas.cancelPendingOps()
         canvas.setDiff(nil, columns: [[], []], preserveScroll: false)
         showImage(nil)
         placard.show(symbol: symbol, title: title, subtitle: subtitle)
+        canvas.busy = false
         summary = ""
         bottomBar.statusLabel.stringValue = ""
         updateChangeLabel()
@@ -240,7 +251,8 @@ final class DiffViewController: NSViewController {
             placard.isHidden = true
             showImage(nil)
             docs = [diff.left, diff.right]
-            canvas.setDiff(diff, columns: columns, syntax: syntax, preserveScroll: keepScroll)
+            canvas.setDiff(diff, columns: columns, syntax: syntax, edit: pendingEdit, preserveScroll: keepScroll)
+            pendingEdit = nil
             summary = Self.summary(diff.stats)
             bottomBar.statusLabel.stringValue = Self.status(diff)
         case .image(let comparison):
@@ -267,6 +279,8 @@ final class DiffViewController: NSViewController {
         }
         updateChangeLabel()
         onSummaryChange?()
+        // Only now may queued keystrokes run: they must see the document that was just shown.
+        canvas.busy = false
     }
 
     // MARK: Editing
@@ -275,10 +289,12 @@ final class DiffViewController: NSViewController {
     func isEdited(_ side: Side) -> Bool { editCounts[side.rawValue] != 0 }
     var hasUnsavedChanges: Bool { editCounts != [0, 0] }
 
-    /// Copying needs a text diff of two existing files that can both be written back unchanged.
-    var canMerge: Bool {
-        !isLoading && canvas.diff != nil && urls.0 != nil && urls.1 != nil && docs[0].isLossless && docs[1].isLossless
+    /// Editing needs a text diff of two existing files that can both be written back unchanged.
+    var canEdit: Bool {
+        canvas.diff != nil && urls.0 != nil && urls.1 != nil && docs[0].isLossless && docs[1].isLossless
     }
+    /// True when an edit can be applied right now, which excludes the moment a re-diff is running.
+    var canMerge: Bool { canEdit && !isLoading }
     var canCopyChange: Bool { canMerge && canvas.currentChange != nil }
 
     /// Replaces the current change on `target` with the lines of the other side.
@@ -291,22 +307,54 @@ final class DiffViewController: NSViewController {
         setDocument(edited, side: t, actionName: target == .right ? "Copy to Right" : "Copy to Left")
     }
 
+    /// Typed or pasted text from the canvas. Returns where the caret belongs afterwards.
+    private func replaceText(_ side: Side, _ a: TextPos, _ b: TextPos, _ text: String, coalesce: Bool) -> TextPos? {
+        guard canMerge else { return nil }
+        let result = docs[side.rawValue].replacingText(from: (a.line, a.offset), to: (b.line, b.offset), with: text)
+        setDocument(result.document, side: side.rawValue, actionName: "Typing", coalesce: coalesce)
+        return TextPos(line: result.end.line, offset: result.end.offset)
+    }
+
     /// Installs a new working copy of one side, undoably, and diffs again.
-    private func setDocument(_ doc: TextDocument, side: Int, actionName: String) {
+    /// With `coalesce`, an edit that follows other typing on the same side joins its undo step.
+    private func setDocument(_ doc: TextDocument, side: Int, actionName: String, coalesce: Bool = false) {
         let old = docs[side]
-        undo.registerUndo(withTarget: self) { $0.setDocument(old, side: side, actionName: actionName) }
-        undo.setActionName(actionName)
-        editCounts[side] += undo.isUndoing ? -1 : 1
+        let replaying = undo.isUndoing || undo.isRedoing
+        if !(coalesce && typingSide == side && !replaying && undo.canUndo) {
+            undo.registerUndo(withTarget: self) { $0.setDocument(old, side: side, actionName: actionName) }
+            undo.setActionName(actionName)
+            editCounts[side] += undo.isUndoing ? -1 : 1
+        }
+        typingSide = coalesce && !replaying ? side : nil
         docs[side] = doc
-        rediff()
+        let edit = Self.lineEdit(Side(rawValue: side) ?? .left, old.lines, doc.lines)
+        if replaying {
+            // Put the caret at the end of what undo or redo brought back.
+            let line = min(max(edit.oldRange.lowerBound + edit.newCount - 1, 0), max(doc.lines.count - 1, 0))
+            let offset = edit.newCount > 0 && line < doc.lines.count ? doc.lines[line].utf16.count : 0
+            canvas.selectAfterNextDiff(edit.side, TextPos(line: line, offset: offset))
+        }
+        rediff(edit: edit)
         editStateChanged()
     }
 
+    /// The smallest range of lines that differs between two versions of a side.
+    private static func lineEdit(_ side: Side, _ old: [String], _ new: [String]) -> LineEdit {
+        let limit = min(old.count, new.count)
+        var prefix = 0
+        while prefix < limit && old[prefix] == new[prefix] { prefix += 1 }
+        var suffix = 0
+        while suffix < limit - prefix && old[old.count - 1 - suffix] == new[new.count - 1 - suffix] { suffix += 1 }
+        return LineEdit(side: side, oldRange: prefix..<(old.count - suffix), newCount: new.count - suffix - prefix)
+    }
+
     /// Diffs the working copies again, keeping the scroll position and the current change.
-    private func rediff() {
+    private func rediff(edit: LineEdit? = nil) {
         generation += 1
         let gen = generation
         isLoading = true
+        canvas.busy = true
+        pendingEdit = edit
         let l = docs[0], r = docs[1], urls = self.urls
         Task { [weak self] in
             let result = await Self.diff(l, r, urls.0, urls.1)
@@ -323,6 +371,7 @@ final class DiffViewController: NSViewController {
     }
 
     private func resetEdits() {
+        typingSide = nil
         editCounts = [0, 0]
         undo.removeAllActions()
         editStateChanged()
@@ -334,6 +383,7 @@ final class DiffViewController: NSViewController {
     /// after telling the user why.
     @discardableResult
     func save() -> Bool {
+        var normalized = false
         for side in 0..<2 where editCounts[side] != 0 {
             guard let url = side == 0 ? urls.0 : urls.1 else { continue }
             var data = docs[side].encoded()
@@ -359,7 +409,17 @@ final class DiffViewController: NSViewController {
             }
             stamps[side] = FileStamp(url)
             editCounts[side] = 0
+            // A last line that is empty and unterminated is written as nothing; read it as written.
+            if let data {
+                let written = TextDocument.decode(data, url: url)
+                if written.lines.count != docs[side].lines.count {
+                    docs[side] = written
+                    normalized = true
+                }
+            }
         }
+        typingSide = nil
+        if normalized { rediff() }
         editStateChanged()
         onSave?()
         return true
@@ -487,7 +547,7 @@ final class DiffViewController: NSViewController {
     }
 
     private func updateChangeLabel() {
-        canvas.mergeEnabled = canMerge
+        canvas.mergeEnabled = canEdit
         bottomBar.copyLeftButton.isEnabled = canCopyChange
         bottomBar.copyRightButton.isEnabled = canCopyChange
         if let c = imageView.comparison, showsImage {
