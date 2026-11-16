@@ -222,9 +222,9 @@ Sections 1 to 10 describe version 1 as it was planned and built. This section is
 | – | Syntax highlighting, 29 languages and formats | Shipped |
 | – | Merge stage 1: copy changes between sides, save, undo | Shipped |
 | – | Merge stage 2: edit in place | Shipped |
-| 1 | Three-way merge, usable as `git mergetool` | Next |
-| 2 | Unified layout, ignore whitespace, find in pane | Planned |
-| 3 | Mac App Store build | Planned |
+| – | Three-way merge, usable as `git mergetool` | Shipped |
+| 1 | Unified layout, ignore whitespace, find in pane | Next |
+| 2 | Mac App Store build | Planned |
 
 Proportional fonts for prose (section 10) stay unscheduled.
 
@@ -267,7 +267,15 @@ A caret, typing, deletion, paste and cut in either pane, on top of the document 
 
 ### 11.3 Three-way merge
 
-A base, local and remote file with a result pane, driven by `scripts/twofold` as `git mergetool`. Depends on both merge stages. Not designed yet.
+Shipped. `twofold --wait --base "$BASE" --output "$MERGED" "$LOCAL" "$REMOTE"` opens a merge window; that command is the `mergetool.twofold.cmd` for git. As built:
+
+- **Layout.** The top half is the ordinary diff canvas comparing A (local) with B (remote), read-only. The bottom half is the result, an editable text view. The base has no pane of its own; it only decides what is merged automatically.
+- **Algorithm.** A diff3-style merge in `DiffCore/ThreeWayMerge.swift`: lines of the base that survive on both sides split the files into chunks. A chunk only one side changed takes that side, an identical change on both sides is taken once, and a chunk both sides changed differently is a conflict (after setting aside the lines the two sides share at either end of it). Edits to neighbouring lines conflict, as in git. Resolving every conflict as ours, theirs or both gives the same bytes as `git merge-file --ours`, `--theirs` and `--union` on the test fixture, and conflict-free merges are checked against `git merge-file` in the tests.
+- **No base.** When git has no common ancestor (the base file is missing or empty), every difference between the two sides is a conflict.
+- **Conflicts are text.** An unresolved conflict sits in the result between git's conflict markers. Nothing else records whether a conflict is resolved: it is resolved when its markers are gone, however that happened (a side was taken, or the text was edited by hand). Undo therefore needs no bookkeeping of its own.
+- **Choosing.** Every change has two rings in the ribbon, ticked for the side or sides the result holds. Clicking one takes that side; ⌥⌘1, ⌥⌘2 and ⌥⌘3 take A, B or both for the current change. Unresolved conflicts are amber in both halves, and ⌃⌘↓ / ⌃⌘↑ step through them.
+- **Saving.** ⌘S writes the result to the output file in that file's encoding and line-ending style (A's, if the file does not exist yet). Saving with conflicts left asks first; closing with an unsaved result asks too. Git is told nothing through the exit code (`trustExitCode false`): it sees that the file was written.
+- **Not built:** a pane for the base, syntax colours, line numbers and visible line endings in the result pane, per-line terminators in the result (a file with mixed line endings is saved with its most common one), reloading when an input changes on disk, merging images or binary files, and starting a merge from the start window (it is command-line only).
 
 ### 11.4 Open point: sandbox
 

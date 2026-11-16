@@ -11,6 +11,8 @@ final class PathBarView: NSView {
     var paneWidth: CGFloat = 300 { didSet { needsLayout = true; needsDisplay = true } }
     var ribbonWidth: CGFloat = 64 { didSet { needsLayout = true; needsDisplay = true } }
     let swapButton = NSButton()
+    /// When set, the bar shows this one file across its whole width, under this badge letter and title.
+    var single: (letter: String, title: String, url: URL)? { didSet { swapButton.isHidden = single != nil; needsDisplay = true } }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -41,13 +43,17 @@ final class PathBarView: NSView {
         bounds.fill()
         Theme.separator.setFill()
         CGRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1).fill()
+        if let single {
+            drawSide(single.letter, single.url, edited.0, CGRect(x: 0, y: 0, width: bounds.width - 12, height: bounds.height), title: single.title)
+            return
+        }
         let gap: CGFloat = hasRibbon ? 16 : 40
         drawSide("A", urls.0, edited.0, CGRect(x: 0, y: 0, width: paneWidth - gap, height: bounds.height))
         let rx = paneWidth + ribbonWidth
         drawSide("B", urls.1, edited.1, CGRect(x: rx, y: 0, width: bounds.width - rx - DiffCanvasView.stripWidth, height: bounds.height))
     }
 
-    private func drawSide(_ letter: String, _ url: URL?, _ edited: Bool, _ rect: CGRect) {
+    private func drawSide(_ letter: String, _ url: URL?, _ edited: Bool, _ rect: CGRect, title: String? = nil) {
         var x = rect.minX + 12
         let mid = rect.midY
         Badge.draw(letter, in: CGRect(x: x, y: mid - 8, width: 18, height: 16), filled: true)
@@ -56,17 +62,27 @@ final class PathBarView: NSView {
         let font = NSFont.systemFont(ofSize: 12)
         let dim: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: Theme.secondaryText]
         let main: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: Theme.text]
+        if let title {
+            let t = NSAttributedString(string: title, attributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold), .foregroundColor: Theme.text])
+            t.draw(at: CGPoint(x: x, y: mid - 8))
+            x += t.size().width + 14
+        }
         guard let url else {
             NSAttributedString(string: "No file", attributes: dim).draw(at: CGPoint(x: x, y: mid - 8))
             return
         }
         let dir = (url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath
         var comps = dir.split(separator: "/").map(String.init)
+        var truncated = false
+        // A bar with the whole width to itself would otherwise spell out a very long path.
+        if title != nil, comps.count > 3 {
+            comps = Array(comps.suffix(3))
+            truncated = true
+        }
         let name = NSMutableAttributedString(string: url.lastPathComponent, attributes: main)
         if edited { name.append(NSAttributedString(string: " — Edited", attributes: dim)) }
         let sep = NSAttributedString(string: "  ⟩  ", attributes: dim)
         let available = rect.maxX - x - 20 - name.size().width
-        var truncated = false
         func crumbs() -> NSAttributedString {
             let s = NSMutableAttributedString()
             if truncated { s.append(NSAttributedString(string: "…", attributes: dim)); s.append(sep) }
@@ -122,6 +138,10 @@ final class BottomBarView: NSView {
     let syntaxButton = BottomBarView.iconButton("chevron.left.forwardslash.chevron.right", "Syntax Highlighting", #selector(AppDelegate.toggleSyntax(_:)))
     let copyLeftButton = BottomBarView.iconButton("arrow.left.to.line", "Copy Change to Left (⌥⌘←)", #selector(ComparisonWindowController.copyToLeft(_:)))
     let copyRightButton = BottomBarView.iconButton("arrow.right.to.line", "Copy Change to Right (⌥⌘→)", #selector(ComparisonWindowController.copyToRight(_:)))
+    let useLeftButton = BottomBarView.iconButton("a.square", "Use A for This Change (⌥⌘1)", #selector(MergeWindowController.useLeft(_:)))
+    let useRightButton = BottomBarView.iconButton("b.square", "Use B for This Change (⌥⌘2)", #selector(MergeWindowController.useRight(_:)))
+    let useBothButton = BottomBarView.iconButton("plus.square.on.square", "Use Both, A Then B (⌥⌘3)", #selector(MergeWindowController.useBoth(_:)))
+    let nextConflictButton = BottomBarView.iconButton("exclamationmark.triangle", "Next Unresolved Conflict (⌃⌘↓)", #selector(MergeWindowController.nextConflict(_:)))
     let statusLabel = NSTextField(labelWithString: "")
     let changeLabel = NSTextField(labelWithString: "")
     let previousButton = BottomBarView.iconButton("chevron.up", "Previous Change", #selector(ComparisonWindowController.previousChange(_:)))
@@ -152,11 +172,15 @@ final class BottomBarView: NSView {
     /// Switches between the text controls and the image controls.
     var showsImageControls = false { didSet { updateVisibility() } }
     var showsOpacity = false { didSet { updateVisibility() } }
+    /// In a three-way merge the copy buttons give way to the ones that choose a side for the result.
+    var showsMergeControls = false { didSet { updateVisibility() } }
 
     private func updateVisibility() {
-        for v in [wrapButton, invisiblesButton, expandButton, syntaxButton, copyLeftButton, copyRightButton, previousButton, nextButton] {
+        for v in [wrapButton, invisiblesButton, expandButton, syntaxButton, previousButton, nextButton] {
             v.isHidden = showsImageControls
         }
+        for v in [copyLeftButton, copyRightButton] { v.isHidden = showsImageControls || showsMergeControls }
+        for v in [useLeftButton, useRightButton, useBothButton, nextConflictButton] { v.isHidden = !showsMergeControls }
         for v in [imageModeControl, zoomLabel, zoomOutButton, zoomInButton, fitButton] as [NSView] { v.isHidden = !showsImageControls }
         for v in [opacitySlider] + opacityLabels as [NSView] { v.isHidden = !(showsImageControls && showsOpacity) }
     }
@@ -187,9 +211,14 @@ final class BottomBarView: NSView {
                                        imageModeControl, opacityLabels[0], opacitySlider, opacityLabels[1]])
         left.spacing = 4
         left.setCustomSpacing(14, after: imageModeControl)
-        let right = NSStackView(views: [copyLeftButton, copyRightButton, changeLabel, previousButton, nextButton,
+        let right = NSStackView(views: [nextConflictButton, useLeftButton, useRightButton, useBothButton,
+                                        copyLeftButton, copyRightButton, changeLabel, previousButton, nextButton,
                                         zoomLabel, zoomOutButton, zoomInButton, fitButton])
         right.spacing = 6
+        right.setCustomSpacing(14, after: nextConflictButton)
+        right.setCustomSpacing(2, after: useLeftButton)
+        right.setCustomSpacing(2, after: useRightButton)
+        right.setCustomSpacing(14, after: useBothButton)
         right.setCustomSpacing(2, after: copyLeftButton)
         right.setCustomSpacing(14, after: copyRightButton)
         right.setCustomSpacing(12, after: changeLabel)

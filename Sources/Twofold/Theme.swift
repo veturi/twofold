@@ -124,6 +124,19 @@ enum Theme {
         band: dynamic(NSColor(hex: 0x6C99E5, alpha: 0.10), NSColor(hex: 0x5A8DDF, alpha: 0.12))
     )
 
+    /// A change both sides of a three-way merge made differently, until it is resolved.
+    static let conflict = ChangeColors(
+        body: hex(0xFFF6E3, 0x30260F),
+        bodyCurrent: hex(0xFDEBC2, 0x473713),
+        gutter: hex(0xFCEFCF, 0x3A2E12),
+        gutterCurrent: hex(0xD9972B, 0xB37E1F),
+        inline: hex(0xF8DB9A, 0x6B5219),
+        inlineCurrent: hex(0xF3CB75, 0x82631C),
+        stroke: hex(0xDFA53F, 0xD09A32),
+        marker: hex(0xB87707, 0xECB44C),
+        band: dynamic(NSColor(hex: 0xDFA53F, alpha: 0.12), NSColor(hex: 0xD09A32, alpha: 0.14))
+    )
+
     static func colors(for kind: DiffBlock.Kind) -> ChangeColors {
         switch kind {
         case .added: added

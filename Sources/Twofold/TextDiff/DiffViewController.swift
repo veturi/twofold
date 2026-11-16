@@ -239,7 +239,7 @@ final class DiffViewController: NSViewController {
 
     /// Token colours for one side, when its language can be told from the file name or first line.
     @concurrent
-    private nonisolated static func syntax(_ doc: TextDocument, _ url: URL?) async -> SyntaxMap? {
+    nonisolated static func syntax(_ doc: TextDocument, _ url: URL?) async -> SyntaxMap? {
         guard let url, doc.byteCount <= maxSyntaxBytes,
               let language = SyntaxLanguage.detect(fileName: url.lastPathComponent, firstLine: doc.lines.first) else { return nil }
         return language.highlight(doc.lines)
@@ -427,7 +427,7 @@ final class DiffViewController: NSViewController {
 
     /// Every write to a compared file goes through here. Replaces the file in one step and keeps its
     /// permissions; a symbolic link keeps pointing at the file that is rewritten.
-    private static func write(_ data: Data, to url: URL) throws {
+    static func write(_ data: Data, to url: URL) throws {
         let target = url.resolvingSymlinksInPath()
         let permissions = (try? FileManager.default.attributesOfItem(atPath: target.path))?[.posixPermissions]
         try data.write(to: target, options: .atomic)

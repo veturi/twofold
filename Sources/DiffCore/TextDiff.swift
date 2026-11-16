@@ -49,9 +49,6 @@ public struct TextDiff: Sendable {
     }
 
     public init(left: TextDocument, right: TextDocument, timeLimit: Double = 2.0) {
-        self.left = left
-        self.right = right
-
         var table: [String: Int32] = [:]
         table.reserveCapacity(left.lines.count + right.lines.count)
         func intern(_ lines: [String]) -> [Int32] {
@@ -71,7 +68,14 @@ public struct TextDiff: Sendable {
         let a = intern(left.lines)
         let b = intern(right.lines)
         let (am, bm) = Myers.matches(a, b, timeLimit: timeLimit)
-        let blocks = TextDiff.splitModified(TextDiff.makeBlocks(am, bm), left.lines, right.lines)
+        self.init(left: left, right: right, blocks: TextDiff.splitModified(TextDiff.makeBlocks(am, bm), left.lines, right.lines))
+    }
+
+    /// A comparison whose blocks were worked out elsewhere, as a three-way merge does. The blocks must
+    /// cover both documents in order.
+    public init(left: TextDocument, right: TextDocument, blocks: [DiffBlock]) {
+        self.left = left
+        self.right = right
         self.blocks = blocks
 
         var changes: [Int] = []

@@ -13,6 +13,7 @@ It compares two text files or two images side by side, or two folders with a sid
 - Soft wrapping, line-end marks in changed lines, an overview strip of every change, and animated next/previous change navigation.
 - **Edit in place.** Click in either pane and type, paste, cut or delete. The diff updates as you go.
 - **Copy changes across.** Copy any change to the other side with the arrows on it or ⌥⌘→ / ⌥⌘←, undo with ⌘Z, save with ⌘S. Saving rewrites only the lines you changed: the encoding, each line's line ending and whether the file ends with a newline stay as they were.
+- **Three-way merge.** As `git mergetool`, Twofold shows your version and theirs side by side with the result below. Changes only one side made are merged already; each conflict is marked until you take a side, take both, or edit the result yourself.
 - **Syntax highlighting** on top of the change colours, for Swift, C, C++, Objective-C, Java, Kotlin, C#, Scala, Dart, JavaScript, TypeScript, Python, Ruby, Go, Rust, PHP, shell, SQL, Lua, HTML, XML, CSS, JSON, YAML, TOML, INI, Markdown, Makefile and Dockerfile. The language comes from the file name or a `#!` line.
 - **Image diff.** Two images open side by side, as an overlay you can fade from one to the other, or as a difference view that highlights every changed pixel and outlines the changed regions. Zoom and pan apply to both sides at once.
 - Light and dark themes, following the system or set manually.
@@ -57,6 +58,24 @@ git config --global difftool.prompt false
 
 Then `git difftool` compares files one by one, and `git difftool -d` compares whole trees in a folder window.
 
+### As git mergetool
+
+```sh
+git config --global merge.tool twofold
+git config --global mergetool.twofold.cmd 'twofold --wait --base "$BASE" --output "$MERGED" "$LOCAL" "$REMOTE"'
+git config --global mergetool.twofold.trustExitCode false
+```
+
+After a conflict, `git mergetool` opens each conflicted file in a merge window. The top half compares A (your version, `$LOCAL`) with B (theirs, `$REMOTE`); the bottom half is the result that will be saved to the file.
+
+- Changes that only one side made are in the result already. A tick in the ribbon shows which side each change was taken from.
+- Where both sides changed the same lines differently, the change is amber and the result holds both versions between conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`), as git writes them.
+- Click a ring in the ribbon to take that side, or use ⌥⌘1 (A), ⌥⌘2 (B) and ⌥⌘3 (both, A first). This works for any change, not only conflicts.
+- The result is ordinary editable text: type the resolution yourself whenever neither side is right. A conflict counts as resolved once its markers are gone.
+- Save with ⌘S and close the window. Git takes the saved file as the resolution. Saving with conflicts left asks first.
+
+The same command works outside git: `twofold --base base.txt --output merged.txt mine.txt theirs.txt`. Without `--base`, every difference between the two files is a conflict.
+
 ## Keyboard
 
 | Keys | Action |
@@ -64,6 +83,8 @@ Then `git difftool` compares files one by one, and `git difftool -d` compares wh
 | ⌘↓ / ⌘↑ | Next / previous change |
 | ⌥⌘↓ / ⌥⌘↑ | Next / previous file (folders) |
 | ⌥⌘→ / ⌥⌘← | Copy the current change to the right / left |
+| ⌥⌘1 / ⌥⌘2 / ⌥⌘3 | Merge: use A / B / both for the current change |
+| ⌃⌘↓ / ⌃⌘↑ | Merge: next / previous unresolved conflict |
 | ⌘X / ⌘C / ⌘V | Cut / copy / paste |
 | ⌘Z / ⇧⌘Z | Undo / redo |
 | ⌘S | Save edited files |

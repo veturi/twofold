@@ -183,7 +183,19 @@ final class TextDocumentTests: XCTestCase {
         let doc = TextDocument.decode(Data([0xEF, 0xBB, 0xBF, 0x78]), url: nil)
         XCTAssertEqual(doc.lines, ["x"])
     }
+    func testReplacingAllKeepsEncodingAndLineEndings() {
+        let crlf = TextDocument.decode(Data("a\r\nb\r\n".utf8), url: nil)
+        XCTAssertEqual(crlf.replacingAll(with: "x\ny\n").encoded(), Data("x\r\ny\r\n".utf8))
+        XCTAssertEqual(crlf.replacingAll(with: "x\ny").encoded(), Data("x\r\ny".utf8))
+        XCTAssertEqual(crlf.replacingAll(with: "").encoded(), Data())
+        XCTAssertEqual(crlf.replacingAll(with: "\n").encoded(), Data("\r\n".utf8))
+        let latin = TextDocument.decode(Data([0x63, 0xE9, 0x0A]), url: nil)
+        XCTAssertEqual(latin.replacingAll(with: "é!\n").encoded(), Data([0xE9, 0x21, 0x0A]))
+        XCTAssertNil(latin.replacingAll(with: "€\n").encoded())
+        XCTAssertEqual(TextDocument.empty.replacingAll(with: "a\nb").lines, ["a", "b"])
+    }
 }
+
 
 final class DiffTests: XCTestCase {
     func diff(_ a: String, _ b: String) -> TextDiff {
@@ -350,6 +362,198 @@ final class DiffTests: XCTestCase {
             let d = TextDiff(left: try TextDocument.load(a), right: try TextDocument.load(b))
             let ours = d.blocks.filter { $0.kind != .equal }.reduce(0) { $0 + $1.left.count + $1.right.count }
             XCTAssertEqual(ours, expected, "round \(round)")
+        }
+    }
+}
+
+final class ThreeWayMergeTests: XCTestCase {
+    private func doc(_ lines: [String]) -> TextDocument { TextDocument(lines: lines) }
+
+    private func merge(_ base: [String]?, _ local: [String], _ remote: [String]) -> ThreeWayMerge {
+        ThreeWayMerge(base: base.map(doc), local: doc(local), remote: doc(remote))
+    }
+
+    private func kinds(_ m: ThreeWayMerge) -> [MergeChunk.Kind] { m.chunks.map(\.kind) }
+
+    func testChangesOnOneSideAreTaken() {
+        let base = ["a", "b", "c", "d", "e"]
+        let m = merge(base, ["a", "B", "c", "d", "e"], ["a", "b", "c", "d", "E", "f"])
+        XCTAssertEqual(kinds(m), [.unchanged, .local, .unchanged, .remote])
+        XCTAssertEqual(m.conflictCount, 0)
+        XCTAssertEqual(m.mergedLines(), ["a", "B", "c", "d", "E", "f"])
+        XCTAssertEqual(m.changeChunks, [1, 3])
+        XCTAssertEqual(m.diff.changeBlocks.count, 2)
+    }
+
+    func testInsertionsAndDeletions() {
+        let base = ["a", "b", "c", "d"]
+        let m = merge(base, ["a", "c", "d"], ["a", "b", "c", "x", "d"])
+        XCTAssertEqual(m.conflictCount, 0)
+        XCTAssertEqual(m.mergedLines(), ["a", "c", "x", "d"])
+        XCTAssertEqual(m.diff.blocks.filter { $0.kind != .equal }.map(\.kind), [.added, .added])
+    }
+
+    func testSameChangeOnBothSidesIsNotAConflict() {
+        let m = merge(["a", "b", "c"], ["a", "X", "c"], ["a", "X", "c"])
+        XCTAssertEqual(kinds(m), [.unchanged, .same, .unchanged])
+        XCTAssertTrue(m.diff.isIdentical)
+        XCTAssertEqual(m.mergedLines(), ["a", "X", "c"])
+    }
+
+    func testDifferentChangesToTheSameLinesConflict() {
+        let m = merge(["a", "b", "c"], ["a", "L", "c"], ["a", "R", "c"])
+        XCTAssertEqual(kinds(m), [.unchanged, .conflict, .unchanged])
+        XCTAssertEqual(m.conflictCount, 1)
+        XCTAssertNil(m.automaticChoice(1))
+        XCTAssertEqual(m.lines(1, .local), ["L"])
+        XCTAssertEqual(m.lines(1, .remote), ["R"])
+        XCTAssertEqual(m.lines(1, .both), ["L", "R"])
+        XCTAssertEqual(m.lines(1, .base), ["b"])
+        XCTAssertEqual(m.mergedLines(localLabel: "ours", remoteLabel: "theirs"),
+                       ["a", "<<<<<<< ours", "L", "=======", "R", ">>>>>>> theirs", "c"])
+    }
+
+    func testChangeAgainstDeletionConflicts() {
+        let m = merge(["a", "b", "c"], ["a", "c"], ["a", "B", "c"])
+        XCTAssertEqual(m.conflictCount, 1)
+        XCTAssertEqual(m.lines(1, .local), [])
+        XCTAssertEqual(m.diff.blocks[1].kind, .added)
+    }
+
+    func testAdjacentChangesConflict() {
+        // As in git, edits to neighbouring lines are not merged silently.
+        let m = merge(["a", "b", "c", "d"], ["a", "B", "c", "d"], ["a", "b", "C", "d"])
+        XCTAssertEqual(m.conflictCount, 1)
+    }
+
+    func testSharedLinesAreTrimmedFromAConflict() {
+        let m = merge(["a", "z"], ["a", "new", "L", "z"], ["a", "new", "R", "z"])
+        XCTAssertEqual(kinds(m), [.unchanged, .same, .conflict, .unchanged])
+        XCTAssertEqual(m.lines(2, .local), ["L"])
+        XCTAssertEqual(m.mergedLines(), ["a", "new", "<<<<<<< local", "L", "=======", "R", ">>>>>>> remote", "z"])
+    }
+
+    func testWithoutBaseEveryDifferenceConflicts() {
+        let m = merge(nil, ["a", "b", "c"], ["a", "c", "d"])
+        XCTAssertEqual(kinds(m), [.unchanged, .conflict, .unchanged, .conflict])
+        XCTAssertEqual(m.lines(1, .base), [])
+        XCTAssertEqual(m.diff.changeBlocks.count, 2)
+    }
+
+    func testEmptyAndIdenticalInputs() {
+        XCTAssertEqual(merge([], [], []).chunks, [])
+        XCTAssertEqual(kinds(merge(["a"], ["a"], ["a"])), [.unchanged])
+        let added = merge([], ["x"], [])
+        XCTAssertEqual(kinds(added), [.local])
+        XCTAssertEqual(added.mergedLines(), ["x"])
+        XCTAssertEqual(merge([], ["x"], ["y"]).conflictCount, 1)
+    }
+
+    func testConflictStartDetection() {
+        XCTAssertTrue(ThreeWayMerge.isConflictStart("<<<<<<< HEAD"))
+        XCTAssertTrue(ThreeWayMerge.isConflictStart("<<<<<<<"))
+        XCTAssertFalse(ThreeWayMerge.isConflictStart("<<<<<<<<"))
+        XCTAssertFalse(ThreeWayMerge.isConflictStart(" <<<<<<< HEAD"))
+    }
+
+    /// The chunks must tile all three files, and the diff must describe local against remote.
+    func testChunksCoverEverySide() {
+        var rng = SystemRandomNumberGenerator()
+        for _ in 0..<300 {
+            let base = (0..<Int.random(in: 0...30, using: &rng)).map { _ in String(Int.random(in: 0...6, using: &rng)) }
+            func mutate(_ lines: [String]) -> [String] {
+                var out = lines
+                for _ in 0..<Int.random(in: 0...4, using: &rng) {
+                    let i = Int.random(in: 0...out.count, using: &rng)
+                    switch Int.random(in: 0...2, using: &rng) {
+                    case 0: out.insert(String(Int.random(in: 0...9, using: &rng)), at: i)
+                    case 1: if i < out.count { out.remove(at: i) }
+                    default: if i < out.count { out[i] = String(Int.random(in: 0...9, using: &rng)) }
+                    }
+                }
+                return out
+            }
+            let local = mutate(base), remote = mutate(base)
+            for b in [base, nil] {
+                let m = merge(b, local, remote)
+                var bi = 0, li = 0, ri = 0
+                for (i, c) in m.chunks.enumerated() {
+                    if b != nil { XCTAssertEqual(c.base.lowerBound, bi) }
+                    XCTAssertEqual(c.local.lowerBound, li)
+                    XCTAssertEqual(c.remote.lowerBound, ri)
+                    bi = c.base.upperBound; li = c.local.upperBound; ri = c.remote.upperBound
+                    switch c.kind {
+                    case .unchanged, .same: XCTAssertEqual(m.lines(i, .local), m.lines(i, .remote))
+                    case .local: XCTAssertEqual(m.lines(i, .remote), m.lines(i, .base))
+                    case .remote: XCTAssertEqual(m.lines(i, .local), m.lines(i, .base))
+                    case .conflict: XCTAssertNotEqual(m.lines(i, .local), m.lines(i, .remote))
+                    }
+                    if c.kind != .unchanged && c.kind != .same { XCTAssertNotEqual(m.lines(i, .local), m.lines(i, .remote)) }
+                }
+                if let b { XCTAssertEqual(bi, b.count) }
+                XCTAssertEqual(li, local.count)
+                XCTAssertEqual(ri, remote.count)
+                XCTAssertEqual(m.changeChunks.count, m.diff.changeBlocks.count)
+                for (n, ci) in m.changeChunks.enumerated() {
+                    let block = m.diff.blocks[m.diff.changeBlocks[n]]
+                    XCTAssertEqual(block.left, m.chunks[ci].local)
+                    XCTAssertEqual(block.right, m.chunks[ci].remote)
+                }
+                var l = 0, r = 0
+                for block in m.diff.blocks {
+                    XCTAssertEqual(block.left.lowerBound, l)
+                    XCTAssertEqual(block.right.lowerBound, r)
+                    l = block.left.upperBound; r = block.right.upperBound
+                    if block.kind == .equal { XCTAssertEqual(Array(local[block.left]), Array(remote[block.right])) }
+                }
+                XCTAssertEqual(l, local.count)
+                XCTAssertEqual(r, remote.count)
+            }
+        }
+    }
+
+    /// With unique lines and edits kept apart, git has only one possible answer; ours must be the same.
+    func testMatchesGitMergeFile() throws {
+        let git = "/usr/bin/git"
+        guard FileManager.default.isExecutableFile(atPath: git) else { throw XCTSkip("git not available") }
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("twofold-m-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var rng = SystemRandomNumberGenerator()
+        for round in 0..<25 {
+            let base = (0..<200).map { "line \($0)" }
+            // Each side edits its own set of spots, at least three lines from any other.
+            func edited(_ offset: Int, _ tag: String) -> [String] {
+                var out: [String] = []
+                for (i, line) in base.enumerated() {
+                    guard i % 12 == offset else { out.append(line); continue }
+                    switch Int.random(in: 0...3, using: &rng) {
+                    case 0: out.append("\(line) \(tag)")
+                    case 1: break
+                    case 2: out += [line, "\(tag) new \(i)", "\(tag) more \(i)"]
+                    default: out.append(line)
+                    }
+                }
+                return out
+            }
+            let local = edited(2, "L"), remote = edited(8, "R")
+            let names = ["local", "base", "remote"].map { dir.appendingPathComponent("\($0)-\(round).txt") }
+            for (url, lines) in zip(names, [local, base, remote]) {
+                try (lines.joined(separator: "\n") + "\n").write(to: url, atomically: true, encoding: .utf8)
+            }
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: git)
+            p.arguments = ["merge-file", "-p"] + names.map(\.path)
+            let pipe = Pipe()
+            p.standardOutput = pipe
+            p.standardError = Pipe()
+            try p.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            p.waitUntilExit()
+            XCTAssertEqual(p.terminationStatus, 0, "git found conflicts in a case built to have none")
+            let m = merge(base, local, remote)
+            XCTAssertEqual(m.conflictCount, 0)
+            XCTAssertEqual(m.mergedLines().joined(separator: "\n") + "\n", String(decoding: data, as: UTF8.self))
         }
     }
 }

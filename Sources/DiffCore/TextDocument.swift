@@ -238,6 +238,21 @@ public struct TextDocument: Sendable {
         return doc
     }
 
+    /// The whole text replaced by `text`, in this document's encoding and line-ending style. Whether the
+    /// file ends with a line break follows `text`.
+    public func replacingAll(with text: String) -> TextDocument {
+        var pieces = Self.pieces(of: text)
+        let terminated = pieces.last == ""
+        if terminated { pieces.removeLast() }
+        let style = preferredTerminator
+        var doc = self
+        doc.lines = pieces
+        doc.terminators = [LineTerminator](repeating: style, count: pieces.count)
+        if !terminated, !pieces.isEmpty { doc.terminators[pieces.count - 1] = .none }
+        doc.lineEnding = Self.summary(doc.terminators)
+        return doc
+    }
+
     /// True when the last line ends with a line break (or there are no lines to end).
     public var endsWithTerminator: Bool { terminators.last.map { $0 != .none } ?? true }
     /// Splits text on LF, CRLF and CR. Always returns at least one piece; a trailing break gives a final empty one.

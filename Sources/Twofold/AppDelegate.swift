@@ -17,6 +17,12 @@ struct LaunchOptions {
     /// Snapshot runs only: place the caret ("left:12:4", one-based line and column) and type text.
     var caret: (Side, Int, Int)?
     var typed: String?
+    /// Three-way merge: `--output` names the file the result is saved to and turns the two paths into
+    /// the sides of a merge; `--base` names their common ancestor, if there is one.
+    var base: String?
+    var output: String?
+    /// Snapshot runs only: take this side ("left", "right" or "both") for the current change of a merge.
+    var use: String?
     var size = CGSize(width: 1360, height: 860)
     var change: Int?
     var fontSize: CGFloat?
@@ -42,6 +48,10 @@ struct LaunchOptions {
             case "--wrap": o.wrap = true
             case "--no-wrap": o.wrap = false
             case "--copy": o.copy = next().flatMap { $0 == "left" ? .left : ($0 == "right" ? .right : nil) }
+            case "--base": o.base = next().map { URL(fileURLWithPath: $0).standardizedFileURL.path }
+            case "--output": o.output = next().map { URL(fileURLWithPath: $0).standardizedFileURL.path }
+            case "--use": o.use = next()
+            case "--merge": break
             case "--save": o.save = true
             case "--undo": o.undo = true
             case "--caret":
@@ -79,6 +89,7 @@ struct LaunchOptions {
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     let options = LaunchOptions.parse(Array(CommandLine.arguments.dropFirst()))
     private var comparisons: [ComparisonWindowController] = []
+    private var merges: [MergeWindowController] = []
     private var welcome: WelcomeWindowController?
     private var launched = false
     private var openedFromEvent = false
@@ -94,7 +105,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return
         }
         applyAppearance(animated: false)
-        if options.paths.count >= 2 {
+        if options.paths.count >= 2, let output = options.output {
+            openMerge(base: options.base.map { URL(fileURLWithPath: $0) }, local: URL(fileURLWithPath: options.paths[0]),
+                      remote: URL(fileURLWithPath: options.paths[1]), output: URL(fileURLWithPath: output))
+        } else if options.paths.count >= 2 {
             openComparison(URL(fileURLWithPath: options.paths[0]), URL(fileURLWithPath: options.paths[1]))
         } else if !openedFromEvent {
             showWelcome(prefill: options.paths.first.map { URL(fileURLWithPath: $0) })
@@ -118,18 +132,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         let edited = comparisons.filter { $0.diffVC.hasUnsavedChanges }
-        guard !edited.isEmpty else { return .terminateNow }
+        let unsavedMerges = merges.filter { $0.mergeVC.hasUnsavedChanges }
+        let count = edited.count + unsavedMerges.count
+        guard count > 0 else { return .terminateNow }
         let alert = NSAlert()
-        alert.messageText = edited.count == 1
-            ? "You have unsaved changes in one comparison."
-            : "You have unsaved changes in \(edited.count) comparisons."
+        if edited.isEmpty {
+            alert.messageText = count == 1 ? "The merge result has not been saved." : "\(count) merge results have not been saved."
+        } else {
+            alert.messageText = count == 1 ? "You have unsaved changes in one window." : "You have unsaved changes in \(count) windows."
+        }
         alert.informativeText = "Your changes will be lost if you don’t save them."
-        alert.addButton(withTitle: edited.count == 1 ? "Save" : "Save All")
+        alert.addButton(withTitle: count == 1 ? "Save" : "Save All")
         alert.addButton(withTitle: "Cancel")
         alert.addButton(withTitle: "Discard Changes")
         switch alert.runModal() {
         case .alertFirstButtonReturn:
-            return edited.allSatisfy { $0.diffVC.save() } ? .terminateNow : .terminateCancel
+            let saved = edited.allSatisfy { $0.diffVC.save() } && unsavedMerges.allSatisfy { $0.mergeVC.save() }
+            return saved ? .terminateNow : .terminateCancel
         case .alertThirdButtonReturn:
             return .terminateNow
         default:
@@ -165,6 +184,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             wc.window?.setFrame(frame, display: false)
             old.close()
         } else if let last = comparisons.dropLast().last?.window {
+            wc.window?.setFrameTopLeftPoint(last.cascadeTopLeft(from: NSPoint(x: last.frame.minX, y: last.frame.maxY)))
+        } else {
+            wc.window?.center()
+        }
+        wc.showWindow(nil)
+        wc.start()
+        welcome?.close()
+        welcome = nil
+    }
+
+    /// Opens a three-way merge of two files into `output`. The base may be missing: git names one even
+    /// when the two sides have no common ancestor.
+    func openMerge(base: URL?, local: URL, remote: URL, output: URL) {
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+        for url in [local, remote] {
+            guard fm.fileExists(atPath: url.path, isDirectory: &isDir), !isDir.boolValue else {
+                alert("Cannot merge \(url.lastPathComponent)", "There is no file at \(url.path).")
+                if comparisons.isEmpty && merges.isEmpty { showWelcome(prefill: nil) }
+                return
+            }
+        }
+        let wc = MergeWindowController(base: base, local: local, remote: remote, output: output)
+        wc.onClose = { [weak self] c in self?.merges.removeAll { $0 === c } }
+        merges.append(wc)
+        if let last = (merges.dropLast().last?.window ?? comparisons.last?.window) {
             wc.window?.setFrameTopLeftPoint(last.cascadeTopLeft(from: NSPoint(x: last.frame.minX, y: last.frame.maxY)))
         } else {
             wc.window?.center()
@@ -339,6 +384,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         _ = submenu("Merge", [
             item("Copy to Right", #selector(ComparisonWindowController.copyToRight(_:)), right, [.command, .option]),
             item("Copy to Left", #selector(ComparisonWindowController.copyToLeft(_:)), left, [.command, .option]),
+            .separator(),
+            item("Use A", #selector(MergeWindowController.useLeft(_:)), "1", [.command, .option]),
+            item("Use B", #selector(MergeWindowController.useRight(_:)), "2", [.command, .option]),
+            item("Use Both", #selector(MergeWindowController.useBoth(_:)), "3", [.command, .option]),
+            .separator(),
+            item("Next Conflict", #selector(MergeWindowController.nextConflict(_:)), down, [.command, .control]),
+            item("Previous Conflict", #selector(MergeWindowController.previousConflict(_:)), up, [.command, .control]),
         ])
         let window = submenu("Window", [
             item("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m"),

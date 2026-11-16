@@ -94,7 +94,7 @@
           "name": "Can Twofold do three-way merges like Meld?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Not yet. Three-way merge for git mergetool is on the roadmap."
+            "text": "Yes. Twofold merges two versions of a file against their common base and works as git mergetool. It shows the two sides and the result; unlike Meld, it does not compare three unrelated files side by side."
           }
         }
       ]
@@ -226,7 +226,7 @@
       <div>
         <h2 class="text-2xl font-bold tracking-tight">Where Meld is better</h2>
         <ul class="mt-6 space-y-4 text-zinc-600 dark:text-zinc-400">
-          <li class="flex gap-3"><span class="text-zinc-400">–</span><span><strong>Three-way.</strong> Meld compares and merges three files at once. Twofold compares and edits two.</span></li>
+          <li class="flex gap-3"><span class="text-zinc-400">–</span><span><strong>Three panes.</strong> Meld shows three files in three panes. Twofold's three-way merge shows the two sides above a plain-text result, with no pane for the common base.</span></li>
           <li class="flex gap-3"><span class="text-zinc-400">–</span><span><strong>Version control view.</strong> Meld can browse a repository's changes directly. Twofold works through <code class="font-mono text-sm">git difftool</code> instead.</span></li>
           <li class="flex gap-3"><span class="text-zinc-400">–</span><span><strong>Cross-platform.</strong> Meld runs on Linux and Windows too. Twofold is Mac only.</span></li>
         </ul>
@@ -235,7 +235,7 @@
 
     <section class="mx-auto max-w-3xl px-6 pb-20 text-center">
       <h2 class="text-3xl font-bold tracking-tight sm:text-4xl">Should you switch?</h2>
-      <p class="mt-6 text-lg text-zinc-600 dark:text-zinc-400">If you came to the Mac from Linux and miss Meld for reading diffs, Twofold is the closest native, free and open source equivalent. If you need Meld's three-way merge today, its community Mac builds still work, with a non-native interface.</p>
+      <p class="mt-6 text-lg text-zinc-600 dark:text-zinc-400">If you came to the Mac from Linux and miss Meld for reading diffs, Twofold is the closest native, free and open source equivalent. Twofold also resolves git conflicts, as <code class="font-mono text-sm">git mergetool</code>. If you need three files side by side, Meld's community Mac builds still work, with a non-native interface.</p>
       <a href="https://github.com/veturi/twofold/releases/latest" class="mt-10 inline-block rounded-full bg-brand px-7 py-3.5 text-base font-semibold text-white shadow-lg shadow-brand/30 transition hover:bg-brand-light">Download Twofold free</a>
     </section>
 
@@ -253,7 +253,7 @@
           </div>
           <div class="py-5">
             <h3 class="text-lg font-semibold">Can Twofold do three-way merges like Meld?</h3>
-            <p class="mt-2 text-zinc-600 dark:text-zinc-400">Not yet. Three-way merge for git mergetool is on the roadmap.</p>
+            <p class="mt-2 text-zinc-600 dark:text-zinc-400">Yes. Twofold merges two versions of a file against their common base and works as git mergetool. It shows the two sides and the result; unlike Meld, it does not compare three unrelated files side by side.</p>
           </div>
         </div>
       </div>

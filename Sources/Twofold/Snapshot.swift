@@ -28,6 +28,10 @@ enum Snapshot {
         p.overrides["showInvisibles"] = p.showInvisibles
 
         let a = URL(fileURLWithPath: o.paths[0]), b = URL(fileURLWithPath: o.paths[1])
+        if let output = o.output {
+            runMerge(o, local: a, remote: b, output: URL(fileURLWithPath: output), to: out)
+            return
+        }
         let isDir = (try? a.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
         let wc = ComparisonWindowController(left: a, right: b, kind: isDir ? .folders : .files)
         wc.initialSelection = o.file
@@ -80,6 +84,55 @@ enum Snapshot {
                 }
                 window.layoutIfNeeded()
             }
+            capture(window, to: out, scale: o.scale)
+            exit(0)
+        }
+    }
+
+    /// A three-way merge: `--change N` picks a change, `--use left|right|both` resolves it (or several
+    /// at once: `--use 3:left,5:both`),
+    /// `--caret left:LINE:COLUMN --type "text"` types into the result at that line and column,
+    /// `--undo` undoes the last step and `--save` writes the result.
+    private static func runMerge(_ o: LaunchOptions, local: URL, remote: URL, output: URL, to out: String) {
+        let wc = MergeWindowController(base: o.base.map { URL(fileURLWithPath: $0) }, local: local, remote: remote, output: output)
+        guard let window = wc.window else { exit(1) }
+        switch o.appearance {
+        case .dark?: window.appearance = NSAppearance(named: .darkAqua)
+        case .light?: window.appearance = NSAppearance(named: .aqua)
+        default: break
+        }
+        window.setContentSize(o.size)
+        window.layoutIfNeeded()
+        wc.start()
+        Task {
+            let started = Date()
+            while wc.isBusy && Date().timeIntervalSince(started) < 15 { try? await Task.sleep(for: .milliseconds(20)) }
+            try? await Task.sleep(for: .milliseconds(250))
+            window.layoutIfNeeded()
+            let vc = wc.mergeVC
+            if let c = o.change { vc.canvas.goToChange(c, animated: false) }
+            // "left", or several as "3:left,5:both" with one-based change numbers.
+            for item in (o.use ?? "").split(separator: ",") {
+                let parts = item.split(separator: ":")
+                let side = parts.last.map(String.init) ?? ""
+                let change = parts.count == 2 ? Int(parts[0]).map { $0 - 1 } : nil
+                vc.use(side == "left" ? .local : (side == "right" ? .remote : .both), change: change)
+            }
+            if o.use?.contains(":") == true, let c = o.change { vc.canvas.goToChange(c, animated: false) }
+            if let (_, line, column) = o.caret, let text = o.typed {
+                let view = vc.result.textView
+                let string = view.string as NSString
+                var at = 0
+                for _ in 0..<line where at < string.length { at = NSMaxRange(string.lineRange(for: NSRange(location: at, length: 0))) }
+                window.makeFirstResponder(view)
+                view.setSelectedRange(NSRange(location: min(at + column, string.length), length: 0))
+                view.insertText(text, replacementRange: view.selectedRange())
+            }
+            if o.undo { vc.undo.undo() }
+            if o.save { print(vc.save(confirmConflicts: false) ? "saved" : "save failed") }
+            print("changes: \(vc.canvas.changeCount)  unresolved: \(vc.unresolvedCount)  unsaved: \(vc.hasUnsavedChanges)")
+            window.layoutIfNeeded()
+            try? await Task.sleep(for: .milliseconds(100))
             capture(window, to: out, scale: o.scale)
             exit(0)
         }

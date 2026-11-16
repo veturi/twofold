@@ -61,6 +61,13 @@ final class DiffCanvasView: NSView {
     }
     /// Called with the side to copy the current change to.
     var onCopy: ((Side) -> Void)?
+    /// In a three-way merge: what the result takes for each change. The ribbon then shows a pair of
+    /// buttons on every change instead of the copy buttons, and unresolved conflicts get their own colour.
+    var mergeMarks: [MergeMark]? {
+        didSet { if oldValue != mergeMarks { needsDisplay = true } }
+    }
+    /// Called with a change and the side whose lines the result should take for it.
+    var onTake: ((Int, Side) -> Void)?
     /// Called with the pane and ribbon widths whenever they change.
     var onGeometryChange: ((CGFloat, CGFloat) -> Void)?
 
@@ -517,11 +524,17 @@ final class DiffCanvasView: NSView {
         }
     }
 
+    /// The colours of a change: its kind's, or the conflict colours while a merge leaves it unresolved.
+    private func colors(_ s: LayoutSection, _ diff: TextDiff) -> Palette.Change {
+        if let marks = mergeMarks, s.change >= 0, s.change < marks.count, marks[s.change].conflict { return pal.conflict }
+        return pal.colors(diff.blocks[s.block].kind)
+    }
+
     private func renderChange(_ ctx: CGContext, _ m: DiffLayout, _ s: LayoutSection, _ side: Side,
                               _ x0: CGFloat, _ sy: CGFloat, _ off: CGFloat, _ topY: CGFloat, _ botY: CGFloat,
                               _ pulse: CGFloat?) {
         guard let diff else { return }
-        let colors = pal.colors(diff.blocks[s.block].kind)
+        let colors = colors(s, diff)
         let current = s.change == currentChange
         let h = s.height(side)
         if h > 0 {
@@ -533,7 +546,7 @@ final class DiffCanvasView: NSView {
             var l = m.line(in: s, side, atY: topY) ?? lines.lowerBound
             let tops = m.lineTop[side.rawValue]
             while l < lines.upperBound && tops[l] <= botY {
-                renderLine(ctx, m, side, l, x0, tops[l] - off + Self.topInset, kind: diff.blocks[s.block].kind, current: current)
+                renderLine(ctx, m, side, l, x0, tops[l] - off + Self.topInset, kind: diff.blocks[s.block].kind, current: current, colors: colors)
                 l += 1
             }
             if mode == .fluid {
@@ -550,8 +563,9 @@ final class DiffCanvasView: NSView {
     }
 
     private func renderLine(_ ctx: CGContext, _ m: DiffLayout, _ side: Side, _ line: Int,
-                            _ x0: CGFloat, _ sy: CGFloat, kind: DiffBlock.Kind?, current: Bool) {
-        let colors = kind.map { pal.colors($0) }
+                            _ x0: CGFloat, _ sy: CGFloat, kind: DiffBlock.Kind?, current: Bool,
+                            colors override: Palette.Change? = nil) {
+        let colors = override ?? kind.map { pal.colors($0) }
         let rows = m.rowStarts(side, line)
         let text = m.lines(side)[line]
         let length = text.utf16.count
@@ -566,7 +580,7 @@ final class DiffCanvasView: NSView {
         CTLineDraw(num, ctx)
         if let kind {
             let marker = kind == .added ? "+" : (kind == .removed ? "−" : "~")
-            ctx.setFillColor(current ? pal.white : pal.colors(kind).marker)
+            ctx.setFillColor(current ? pal.white : (colors ?? pal.colors(kind)).marker)
             ctx.textPosition = CGPoint(x: markerX, y: firstBaseline)
             CTLineDraw(label(marker, small: false, bold: true), ctx)
         }
@@ -682,7 +696,7 @@ final class DiffCanvasView: NSView {
         ctx.clip(to: CGRect(x: rx0 + 1, y: 0, width: w - 2, height: bounds.height))
         for i in max(0, lo - 1)...min(m.sections.count - 1, hi + 1) where m.sections[i].kind == .change {
             let s = m.sections[i]
-            let colors = pal.colors(diff.blocks[s.block].kind)
+            let colors = colors(s, diff)
             let current = s.change == currentChange
             let lt = s.leftY - offL + Self.topInset, lb = lt + s.leftHeight
             let rt = s.rightY - offR + Self.topInset, rb = rt + s.rightHeight
@@ -711,21 +725,48 @@ final class DiffCanvasView: NSView {
         ctx.restoreGState()
     }
 
-    /// The copy-to-left and copy-to-right buttons of the current change, in the middle of its connector.
-    private func copyButtonRects() -> (left: CGRect, right: CGRect)? {
-        guard mergeEnabled, mode == .fluid, let m = model, let c = currentChange, c < m.changeSections.count else { return nil }
+    /// The two ribbon buttons of a change, in the middle of its connector: copy to left and copy to
+    /// right, or in a merge take left and take right. Only the current change's stay on screen when
+    /// the change itself is partly scrolled away.
+    private func buttonRects(_ c: Int) -> (left: CGRect, right: CGRect)? {
+        guard mode == .fluid, let m = model, c >= 0, c < m.changeSections.count else { return nil }
         let s = m.sections[m.changeSections[c]]
         let lt = s.leftY - sideScroll(.left) + Self.topInset, rt = s.rightY - sideScroll(.right) + Self.topInset
         guard max(lt + s.leftHeight, rt + s.rightHeight) > 0, min(lt, rt) < bounds.height else { return nil }
-        let size: CGFloat = 20
+        let size: CGFloat = mergeMarks == nil ? 20 : 18
         let mid = (lt + s.leftHeight / 2 + rt + s.rightHeight / 2) / 2
-        let y = min(max(mid, size / 2 + 4), bounds.height - size / 2 - 4) - size / 2
+        let y = (c == currentChange ? min(max(mid, size / 2 + 4), bounds.height - size / 2 - 4) : mid) - size / 2
         let cx = paneWidth + ribbonWidth / 2
         return (CGRect(x: cx - size - 2, y: y, width: size, height: size), CGRect(x: cx + 2, y: y, width: size, height: size))
     }
 
+    private func copyButtonRects() -> (left: CGRect, right: CGRect)? {
+        guard mergeEnabled, mergeMarks == nil, let c = currentChange else { return nil }
+        return buttonRects(c)
+    }
+
+    /// The changes whose take buttons are on screen, in a merge.
+    private func visibleTakeButtons() -> [(change: Int, left: CGRect, right: CGRect)] {
+        guard let marks = mergeMarks, mode == .fluid, let m = model, !m.sections.isEmpty else { return [] }
+        let offL = sideScroll(.left), offR = sideScroll(.right)
+        let lo = min(m.sectionIndex(.left, atY: offL - Self.topInset), m.sectionIndex(.right, atY: offR - Self.topInset))
+        let hi = max(m.sectionIndex(.left, atY: offL + bounds.height), m.sectionIndex(.right, atY: offR + bounds.height))
+        var out: [(Int, CGRect, CGRect)] = []
+        for i in max(0, lo - 1)...min(m.sections.count - 1, hi + 1) where m.sections[i].kind == .change {
+            let c = m.sections[i].change
+            guard c < marks.count, let r = buttonRects(c) else { continue }
+            out.append((c, r.left, r.right))
+        }
+        return out
+    }
+
     private func renderCopyButtons(_ ctx: CGContext, _ m: DiffLayout) {
-        guard let rects = copyButtonRects(), let diff, let c = currentChange else { return }
+        guard let diff else { return }
+        if let marks = mergeMarks {
+            renderTakeButtons(ctx, m, diff, marks)
+            return
+        }
+        guard let rects = copyButtonRects(), let c = currentChange else { return }
         let colors = pal.colors(diff.blocks[m.sections[m.changeSections[c]].block].kind)
         for (rect, direction) in [(rects.left, CGFloat(-1)), (rects.right, CGFloat(1))] {
             ctx.setFillColor(pal.ribbonBackground)
@@ -747,6 +788,35 @@ final class DiffCanvasView: NSView {
         }
     }
 
+    /// A filled, ticked circle on each side the result takes; an empty ring on a side it leaves out.
+    private func renderTakeButtons(_ ctx: CGContext, _ m: DiffLayout, _ diff: TextDiff, _ marks: [MergeMark]) {
+        for (c, left, right) in visibleTakeButtons() {
+            let colors = colors(m.sections[m.changeSections[c]], diff)
+            for (rect, taken) in [(left, marks[c].left), (right, marks[c].right)] {
+                ctx.setFillColor(pal.ribbonBackground)
+                ctx.fillEllipse(in: rect.insetBy(dx: -1.5, dy: -1.5))
+                if taken {
+                    ctx.setFillColor(colors.gutterCurrent)
+                    ctx.fillEllipse(in: rect)
+                    let tick = CGMutablePath()
+                    tick.move(to: CGPoint(x: rect.midX - 3.8, y: rect.midY + 0.3))
+                    tick.addLine(to: CGPoint(x: rect.midX - 1.1, y: rect.midY + 3))
+                    tick.addLine(to: CGPoint(x: rect.midX + 3.9, y: rect.midY - 3))
+                    ctx.addPath(tick)
+                    ctx.setStrokeColor(pal.white)
+                    ctx.setLineWidth(1.7)
+                    ctx.setLineCap(.round)
+                    ctx.setLineJoin(.round)
+                    ctx.strokePath()
+                } else {
+                    ctx.setStrokeColor(colors.stroke)
+                    ctx.setLineWidth(1.5)
+                    ctx.strokeEllipse(in: rect.insetBy(dx: 0.75, dy: 0.75))
+                }
+            }
+        }
+    }
+
     private var stripScale: CGFloat {
         let total = (model?.totalT ?? 0) + Self.topInset + Self.bottomInset
         return (bounds.height - 8) / max(total, bounds.height)
@@ -760,7 +830,7 @@ final class DiffCanvasView: NSView {
         let scale = stripScale
         for (c, si) in m.changeSections.enumerated() {
             let s = m.sections[si]
-            let colors = pal.colors(diff.blocks[s.block].kind)
+            let colors = colors(s, diff)
             let y = 4 + (s.t + Self.topInset) * scale
             let r = CGRect(x: sx + 4, y: y, width: Self.stripWidth - 7, height: max(2, s.h * scale))
             ctx.setFillColor(c == currentChange ? colors.marker : colors.stroke)
@@ -835,6 +905,16 @@ final class DiffCanvasView: NSView {
             if buttons.left.contains(p) { onCopy?(.left); return }
             if buttons.right.contains(p) { onCopy?(.right); return }
         }
+        for (change, left, right) in visibleTakeButtons() {
+            guard left.contains(p) || right.contains(p) else { continue }
+            if change != currentChange {
+                currentChange = change
+                onStateChange?()
+                needsDisplay = true
+            }
+            onTake?(change, left.contains(p) ? .left : .right)
+            return
+        }
         guard let side = side(at: p) else { return }
         focusSide = side
         switch hit(p, side: side) {
@@ -871,13 +951,20 @@ final class DiffCanvasView: NSView {
     /// Right-clicking a change makes it current and offers to copy it across.
     override func menu(for event: NSEvent) -> NSMenu? {
         let p = convert(event.locationInWindow, from: nil)
-        guard mergeEnabled, let side = side(at: p), case .text(_, _, let change?) = hit(p, side: side) else { return nil }
+        guard mergeEnabled || mergeMarks != nil, let side = side(at: p),
+              case .text(_, _, let change?) = hit(p, side: side) else { return nil }
         if change != currentChange {
             currentChange = change
             onStateChange?()
             needsDisplay = true
         }
         let menu = NSMenu()
+        if mergeMarks != nil {
+            menu.addItem(withTitle: "Use A", action: #selector(MergeWindowController.useLeft(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: "Use B", action: #selector(MergeWindowController.useRight(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: "Use Both", action: #selector(MergeWindowController.useBoth(_:)), keyEquivalent: "")
+            return menu
+        }
         menu.addItem(withTitle: "Copy to Right", action: #selector(ComparisonWindowController.copyToRight(_:)), keyEquivalent: "")
         menu.addItem(withTitle: "Copy to Left", action: #selector(ComparisonWindowController.copyToLeft(_:)), keyEquivalent: "")
         return menu
@@ -1454,6 +1541,13 @@ extension DiffCanvasView: @preconcurrency NSTextInputClient {
     }
 }
 
+/// What a three-way merge's result takes for one change, and whether the change is still an open conflict.
+struct MergeMark: Equatable {
+    var left = false
+    var right = false
+    var conflict = false
+}
+
 /// Theme colours resolved to `CGColor` for one appearance, so drawing never resolves dynamic colours.
 struct Palette {
     struct Change {
@@ -1490,6 +1584,7 @@ struct Palette {
     let added = Change(Theme.added)
     let removed = Change(Theme.removed)
     let modified = Change(Theme.modified)
+    let conflict = Change(Theme.conflict)
 
     func colors(_ kind: DiffBlock.Kind) -> Change {
         switch kind {

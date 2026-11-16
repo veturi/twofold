@@ -43,7 +43,8 @@
           "https://twofoldapp.org/assets/hero-light.png",
           "https://twofoldapp.org/assets/hero-dark.png",
           "https://twofoldapp.org/assets/folders.png",
-          "https://twofoldapp.org/assets/images.png"
+          "https://twofoldapp.org/assets/images.png",
+          "https://twofoldapp.org/assets/merge.png"
         ],
         "featureList": [
           "Side-by-side file comparison with Fluid and Blocks layouts",
@@ -51,9 +52,10 @@
           "Syntax highlighting for 29 languages and formats",
           "Copy changes from one side to the other, with undo and save",
           "Edit in place: type, paste and delete in either pane",
+          "Three-way merge for resolving git conflicts, usable as git mergetool",
           "Folder comparison with a sidebar of changed, added and removed files",
           "Image comparison with side-by-side, overlay and pixel difference views",
-          "Works as git difftool, including whole-tree comparisons",
+          "Works as git difftool, including whole-tree comparisons, and as git mergetool",
           "Automatic reload when files change on disk",
           "Light and dark themes"
         ],
@@ -91,9 +93,11 @@
           { "@type": "Question", "name": "How do I use Twofold as my git difftool?",
             "acceptedAnswer": { "@type": "Answer", "text": "Install the twofold command with make install, then run: git config --global diff.tool twofold; git config --global difftool.twofold.cmd 'twofold --wait \"$LOCAL\" \"$REMOTE\"'; git config --global difftool.prompt false. Use git difftool --dir-diff to compare whole trees in one window." } },
           { "@type": "Question", "name": "Can Twofold merge or edit files?",
-            "acceptedAnswer": { "@type": "Answer", "text": "Yes, for two files. You can type, paste and delete in either pane, copy any change from one side to the other, undo, and save; the rest of the file is written back exactly as it was. Three-way merge is next on the roadmap, for git mergetool." } },
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. You can type, paste and delete in either pane, copy any change from one side to the other, undo, and save; the rest of the file is written back exactly as it was. Twofold also does three-way merges and works as git mergetool for resolving conflicts." } },
+          { "@type": "Question", "name": "How do I use Twofold as my git mergetool?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Install the twofold command with make install, then run: git config --global merge.tool twofold; git config --global mergetool.twofold.cmd 'twofold --wait --base \"$BASE\" --output \"$MERGED\" \"$LOCAL\" \"$REMOTE\"'; git config --global mergetool.twofold.trustExitCode false. After a conflict, git mergetool opens each conflicted file with your version and theirs side by side and the result below. Changes only one side made are already merged; pick a side for each conflict or edit the result, then save and close the window." } },
           { "@type": "Question", "name": "Is Twofold a good Kaleidoscope alternative?",
-            "acceptedAnswer": { "@type": "Answer", "text": "If you mainly read diffs of text files, images and folders, yes: Twofold is native, polished and free, while Kaleidoscope is sold as a subscription. Kaleidoscope still does more, including three-way merge." } },
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes, for most people. Twofold is native, polished and free, while Kaleidoscope is sold as a subscription. Twofold compares text, images and folders, edits files, and resolves git conflicts with a three-way merge. Kaleidoscope's merge tools are older and more complete." } },
           { "@type": "Question", "name": "Does Twofold collect any data?",
             "acceptedAnswer": { "@type": "Answer", "text": "No. The app has no telemetry, no account and no license server. It never sends your files anywhere." } },
           { "@type": "Question", "name": "Why does macOS warn me when I first open Twofold?",
@@ -286,6 +290,10 @@
           <img src="assets/images.png" width="2560" height="1600" loading="lazy" alt="Image comparison in the Difference view, with changed pixels highlighted and changed regions outlined" class="w-full rounded-xl">
           <figcaption class="px-2 pb-1 pt-3 text-sm text-zinc-500">Image comparison: side by side, overlay, or a difference view that marks every changed pixel.</figcaption>
         </figure>
+        <figure class="overflow-hidden rounded-2xl border border-black/5 bg-white p-3 lg:col-span-2 dark:border-white/5 dark:bg-white/5">
+          <img src="assets/merge.png" width="2560" height="1600" loading="lazy" alt="Three-way merge: your version and theirs side by side, with the merged result below and one conflict still marked" class="w-full rounded-xl">
+          <figcaption class="px-2 pb-1 pt-3 text-sm text-zinc-500">Three-way merge: both sides on top, the result below. Changes only one side made are merged for you; conflicts wait in amber until you pick a side or edit the result.</figcaption>
+        </figure>
       </div>
 
       <ul class="mx-auto mt-16 grid max-w-4xl gap-x-10 gap-y-3 text-zinc-600 sm:grid-cols-2 dark:text-zinc-400">
@@ -293,12 +301,13 @@
         <li class="flex gap-3"><span class="text-brand">✓</span> Syntax highlighting for 29 languages and formats</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Copy changes across, undo, and save</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Edit in place: type, paste and delete in either pane</li>
+        <li class="flex gap-3"><span class="text-brand">✓</span> Three-way merge for git conflicts</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Unchanged runs fold away; click to expand</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Soft wrapping and visible line endings</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Overview strip with every change at a glance</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Animated next / previous change with ⌘↓ and ⌘↑</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Reloads automatically when files change on disk</li>
-        <li class="flex gap-3"><span class="text-brand">✓</span> Works as <code class="font-mono text-sm">git difftool</code>, including whole trees</li>
+        <li class="flex gap-3"><span class="text-brand">✓</span> Works as <code class="font-mono text-sm">git difftool</code> and <code class="font-mono text-sm">git mergetool</code></li>
         <li class="flex gap-3"><span class="text-brand">✓</span> UTF-8, UTF-16 and Latin-1, any line endings</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Drop two files on the Dock icon and go</li>
       </ul>
@@ -427,7 +436,7 @@
           <div class="mt-4 flex items-baseline gap-2"><span class="text-5xl font-bold tracking-tight">0 €</span><span class="text-zinc-500">forever</span></div>
           <ul class="mt-6 flex-1 space-y-3 text-zinc-600 dark:text-zinc-400">
             <li class="flex gap-3"><span class="text-brand">✓</span> Download a release, or build it with <code class="font-mono text-sm">make start</code></li>
-            <li class="flex gap-3"><span class="text-brand">✓</span> Command line tool and <code class="font-mono text-sm">git difftool</code></li>
+            <li class="flex gap-3"><span class="text-brand">✓</span> Command line tool, <code class="font-mono text-sm">git difftool</code> and <code class="font-mono text-sm">git mergetool</code></li>
             <li class="flex gap-3"><span class="text-brand">✓</span> All source code, GPLv3</li>
           </ul>
           <a href="https://github.com/veturi/twofold/releases/latest" class="mt-8 rounded-full border border-zinc-300 px-6 py-3 text-center font-semibold hover:bg-zinc-50 dark:border-white/15 dark:hover:bg-white/10">Download from GitHub</a>
@@ -477,13 +486,13 @@
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-add"></span>
             <div><h3 class="font-semibold">Edit in place: shipped</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Type, paste and delete in either pane.</p></div>
           </div>
+          <div class="flex gap-4 rounded-2xl border border-add/30 bg-add/5 p-6">
+            <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-add"></span>
+            <div><h3 class="font-semibold">Three-way merge: shipped</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Resolve git conflicts as <code class="font-mono">git mergetool</code>.</p></div>
+          </div>
           <div class="flex gap-4 rounded-2xl border border-brand/30 bg-brand/5 p-6">
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-brand"></span>
-            <div><h3 class="font-semibold">Three-way merge: next</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Resolve git conflicts as <code class="font-mono">git mergetool</code>.</p></div>
-          </div>
-          <div class="flex gap-4 rounded-2xl border border-black/5 p-6 dark:border-white/10">
-            <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full border-2 border-brand"></span>
-            <div><h3 class="font-semibold">Unified layout, ignore whitespace, find</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">The small things that add up.</p></div>
+            <div><h3 class="font-semibold">Unified layout, ignore whitespace, find: next</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">The small things that add up.</p></div>
           </div>
           <div class="flex gap-4 rounded-2xl border border-black/5 p-6 dark:border-white/10">
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full border-2 border-brand"></span>
@@ -527,6 +536,15 @@ git config --global difftool.prompt false</code></pre>
             <button data-copy="git-cmd" class="absolute right-3 top-3 rounded-md bg-white/10 px-2.5 py-1 font-sans text-xs text-zinc-300 hover:bg-white/20">Copy</button>
           </div>
         </div>
+        <div>
+          <div class="mb-2 text-sm font-medium text-zinc-500">Use it as your git mergetool</div>
+          <div class="relative rounded-xl bg-zinc-900 p-5 font-mono text-sm text-zinc-100 dark:bg-black/60">
+            <pre class="overflow-x-auto"><code id="merge-cmd">git config --global merge.tool twofold
+git config --global mergetool.twofold.cmd 'twofold --wait --base "$BASE" --output "$MERGED" "$LOCAL" "$REMOTE"'
+git config --global mergetool.twofold.trustExitCode false</code></pre>
+            <button data-copy="merge-cmd" class="absolute right-3 top-3 rounded-md bg-white/10 px-2.5 py-1 font-sans text-xs text-zinc-300 hover:bg-white/20">Copy</button>
+          </div>
+        </div>
       </div>
 
       <div class="mt-12 text-center">
@@ -567,11 +585,15 @@ git config --global difftool.prompt false</code></pre>
           </details>
           <details class="group py-5">
             <summary class="cursor-pointer list-none text-lg font-semibold">Can Twofold merge or edit files?</summary>
-            <p class="mt-3 text-zinc-600 dark:text-zinc-400">Yes, for two files. You can type, paste and delete in either pane, copy any change from one side to the other, undo, and save; the rest of the file is written back exactly as it was. Three-way merge is next on the roadmap, for <code class="font-mono text-sm">git mergetool</code>.</p>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">Yes. You can type, paste and delete in either pane, copy any change from one side to the other, undo, and save; the rest of the file is written back exactly as it was. Twofold also does three-way merges and works as <code class="font-mono text-sm">git mergetool</code> for resolving conflicts.</p>
+          </details>
+          <details class="group py-5">
+            <summary class="cursor-pointer list-none text-lg font-semibold">How do I use Twofold as my git mergetool?</summary>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">Install the <code class="font-mono text-sm">twofold</code> command with <code class="font-mono text-sm">make install</code>, then run the three <code class="font-mono text-sm">git config</code> lines for the mergetool in <a href="#install" class="text-brand hover:underline">Get it</a>. After a conflict, <code class="font-mono text-sm">git mergetool</code> opens each conflicted file with your version and theirs side by side and the result below. Changes only one side made are already merged; pick a side for each conflict or edit the result, then save and close the window.</p>
           </details>
           <details class="group py-5">
             <summary class="cursor-pointer list-none text-lg font-semibold">Is Twofold a good Kaleidoscope alternative?</summary>
-            <p class="mt-3 text-zinc-600 dark:text-zinc-400">If you mainly read diffs of text files, images and folders, yes: Twofold is native, polished and free, while Kaleidoscope is sold as a subscription. Kaleidoscope still does more, including three-way merge. <a href="/kaleidoscope-alternative/" class="text-brand hover:underline">The full comparison</a>.</p>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">Yes, for most people. Twofold is native, polished and free, while Kaleidoscope is sold as a subscription. Twofold compares text, images and folders, edits files, and resolves git conflicts with a three-way merge. Kaleidoscope's merge tools are older and more complete. <a href="/kaleidoscope-alternative/" class="text-brand hover:underline">The full comparison</a>.</p>
           </details>
           <details class="group py-5">
             <summary class="cursor-pointer list-none text-lg font-semibold">Does Twofold collect any data?</summary>

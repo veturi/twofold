@@ -3,6 +3,8 @@
 #
 #   twofold A B          compare A and B in a new window
 #   twofold --wait A B   block until the window closes (for git difftool)
+#   twofold --wait --base BASE --output MERGED LOCAL REMOTE
+#                        three-way merge of LOCAL and REMOTE, saved to MERGED (for git mergetool)
 #   twofold              open the start window
 set -euo pipefail
 
@@ -19,25 +21,46 @@ if [[ ! -d "$APP" ]]; then
 fi
 
 usage() {
-    sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+# A path as the app must see it: absolute, since `open` does not pass on the working directory.
+absolute() {
+    if [[ -d "$1" ]]; then
+        (cd "$1" && pwd)
+    else
+        echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+    fi
 }
 
 WAIT=0
 PATHS=()
-for arg in "$@"; do
+EXTRA=()
+while (($#)); do
+    arg="$1"
+    shift
     case "$arg" in
         -w|--wait) WAIT=1 ;;
         -h|--help) usage; exit 0 ;;
+        --base)
+            # Git names a base file even when the two sides share no ancestor; then it does not exist.
+            if (($#)) && [[ -f "$1" ]]; then EXTRA+=(--base "$(absolute "$1")"); fi
+            (($#)) && shift
+            ;;
+        --output)
+            if ! (($#)) || [[ ! -d "$(dirname "$1")" ]]; then
+                echo "twofold: --output needs a file in an existing folder" >&2
+                exit 1
+            fi
+            EXTRA+=(--output "$(absolute "$1")")
+            shift
+            ;;
         *)
             if [[ ! -e "$arg" ]]; then
                 echo "twofold: no such file or directory: $arg" >&2
                 exit 1
             fi
-            if [[ -d "$arg" ]]; then
-                PATHS+=("$(cd "$arg" && pwd)")
-            else
-                PATHS+=("$(cd "$(dirname "$arg")" && pwd)/$(basename "$arg")")
-            fi
+            PATHS+=("$(absolute "$arg")")
             ;;
     esac
 done
@@ -46,7 +69,7 @@ OPEN_ARGS=(-n -a "$APP")
 if [[ $WAIT == 1 ]]; then OPEN_ARGS=(-W "${OPEN_ARGS[@]}"); fi
 
 if ((${#PATHS[@]})); then
-    exec open "${OPEN_ARGS[@]}" --args "${PATHS[@]}"
+    exec open "${OPEN_ARGS[@]}" --args ${EXTRA[@]+"${EXTRA[@]}"} "${PATHS[@]}"
 else
     exec open "${OPEN_ARGS[@]}"
 fi
