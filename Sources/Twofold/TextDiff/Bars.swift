@@ -6,6 +6,8 @@ final class PathBarView: NSView {
     static let height: CGFloat = 30
 
     var urls: (URL?, URL?) = (nil, nil) { didSet { needsDisplay = true } }
+    /// Sides with unsaved changes are marked after the file name.
+    var edited: (Bool, Bool) = (false, false) { didSet { needsDisplay = true } }
     var paneWidth: CGFloat = 300 { didSet { needsLayout = true; needsDisplay = true } }
     var ribbonWidth: CGFloat = 64 { didSet { needsLayout = true; needsDisplay = true } }
     let swapButton = NSButton()
@@ -40,12 +42,12 @@ final class PathBarView: NSView {
         Theme.separator.setFill()
         CGRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1).fill()
         let gap: CGFloat = hasRibbon ? 16 : 40
-        drawSide("A", urls.0, CGRect(x: 0, y: 0, width: paneWidth - gap, height: bounds.height))
+        drawSide("A", urls.0, edited.0, CGRect(x: 0, y: 0, width: paneWidth - gap, height: bounds.height))
         let rx = paneWidth + ribbonWidth
-        drawSide("B", urls.1, CGRect(x: rx, y: 0, width: bounds.width - rx - DiffCanvasView.stripWidth, height: bounds.height))
+        drawSide("B", urls.1, edited.1, CGRect(x: rx, y: 0, width: bounds.width - rx - DiffCanvasView.stripWidth, height: bounds.height))
     }
 
-    private func drawSide(_ letter: String, _ url: URL?, _ rect: CGRect) {
+    private func drawSide(_ letter: String, _ url: URL?, _ edited: Bool, _ rect: CGRect) {
         var x = rect.minX + 12
         let mid = rect.midY
         Badge.draw(letter, in: CGRect(x: x, y: mid - 8, width: 18, height: 16), filled: true)
@@ -60,7 +62,8 @@ final class PathBarView: NSView {
         }
         let dir = (url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath
         var comps = dir.split(separator: "/").map(String.init)
-        let name = NSAttributedString(string: url.lastPathComponent, attributes: main)
+        let name = NSMutableAttributedString(string: url.lastPathComponent, attributes: main)
+        if edited { name.append(NSAttributedString(string: " — Edited", attributes: dim)) }
         let sep = NSAttributedString(string: "  ⟩  ", attributes: dim)
         let available = rect.maxX - x - 20 - name.size().width
         var truncated = false
@@ -117,6 +120,8 @@ final class BottomBarView: NSView {
     let invisiblesButton = BottomBarView.iconButton("paragraphsign", "Show Invisibles", #selector(AppDelegate.toggleInvisibles(_:)))
     let expandButton = BottomBarView.iconButton("arrow.up.and.down.text.horizontal", "Expand Unchanged Lines", #selector(ComparisonWindowController.toggleExpandAll(_:)))
     let syntaxButton = BottomBarView.iconButton("chevron.left.forwardslash.chevron.right", "Syntax Highlighting", #selector(AppDelegate.toggleSyntax(_:)))
+    let copyLeftButton = BottomBarView.iconButton("arrow.left.to.line", "Copy Change to Left (⌥⌘←)", #selector(ComparisonWindowController.copyToLeft(_:)))
+    let copyRightButton = BottomBarView.iconButton("arrow.right.to.line", "Copy Change to Right (⌥⌘→)", #selector(ComparisonWindowController.copyToRight(_:)))
     let statusLabel = NSTextField(labelWithString: "")
     let changeLabel = NSTextField(labelWithString: "")
     let previousButton = BottomBarView.iconButton("chevron.up", "Previous Change", #selector(ComparisonWindowController.previousChange(_:)))
@@ -149,7 +154,9 @@ final class BottomBarView: NSView {
     var showsOpacity = false { didSet { updateVisibility() } }
 
     private func updateVisibility() {
-        for v in [wrapButton, invisiblesButton, expandButton, syntaxButton, previousButton, nextButton] { v.isHidden = showsImageControls }
+        for v in [wrapButton, invisiblesButton, expandButton, syntaxButton, copyLeftButton, copyRightButton, previousButton, nextButton] {
+            v.isHidden = showsImageControls
+        }
         for v in [imageModeControl, zoomLabel, zoomOutButton, zoomInButton, fitButton] as [NSView] { v.isHidden = !showsImageControls }
         for v in [opacitySlider] + opacityLabels as [NSView] { v.isHidden = !(showsImageControls && showsOpacity) }
     }
@@ -180,8 +187,11 @@ final class BottomBarView: NSView {
                                        imageModeControl, opacityLabels[0], opacitySlider, opacityLabels[1]])
         left.spacing = 4
         left.setCustomSpacing(14, after: imageModeControl)
-        let right = NSStackView(views: [changeLabel, previousButton, nextButton, zoomLabel, zoomOutButton, zoomInButton, fitButton])
+        let right = NSStackView(views: [copyLeftButton, copyRightButton, changeLabel, previousButton, nextButton,
+                                        zoomLabel, zoomOutButton, zoomInButton, fitButton])
         right.spacing = 6
+        right.setCustomSpacing(2, after: copyLeftButton)
+        right.setCustomSpacing(14, after: copyRightButton)
         right.setCustomSpacing(12, after: changeLabel)
         right.setCustomSpacing(2, after: zoomOutButton)
         right.setCustomSpacing(2, after: zoomInButton)

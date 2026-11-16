@@ -44,7 +44,14 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
         window.delegate = self
 
         diffVC.onSummaryChange = { [weak self] in self?.updateTitle() }
-        diffVC.onDrop = { [weak self] urls in self?.onDrop?(urls) }
+        diffVC.onDrop = { [weak self] urls in
+            // A drop replaces this comparison, so settle unsaved changes first.
+            self?.diffVC.confirmUnsavedChanges { self?.onDrop?(urls) }
+        }
+        diffVC.onEditStateChange = { [weak self] in
+            self?.window?.isDocumentEdited = self?.diffVC.hasUnsavedChanges ?? false
+        }
+        diffVC.onSave = { [weak self] in self?.updateSavedStatus() }
 
         switch kind {
         case .files:
@@ -109,6 +116,22 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
     }
 
     private func select(_ entry: FolderEntry?) {
+        // The sidebar has already moved; if the user backs out, move it back.
+        let previous = selectedEntry?.path
+        diffVC.confirmUnsavedChanges(cancel: { [weak self] in self?.sidebar?.restoreSelection(previous) }) { [weak self] in
+            self?.show(entry)
+        }
+    }
+
+    /// After a save in a folder comparison, the file may have become identical to its counterpart.
+    private func updateSavedStatus() {
+        guard kind == .folders, let entry = selectedEntry, entry.status == .different || entry.status == .identical else { return }
+        let same = FolderCompare.contentsEqual(left.appendingPathComponent(entry.path), right.appendingPathComponent(entry.path))
+        selectedEntry?.status = same ? .identical : .different
+        sidebar?.setStatus(same ? .identical : .different, forPath: entry.path)
+    }
+
+    private func show(_ entry: FolderEntry?) {
         selectedEntry = entry
         guard let entry else {
             diffVC.clear(title: "No differences", subtitle: "Every file in both folders is identical.", symbol: "checkmark.circle")
@@ -178,21 +201,32 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
     @objc func zoomImageToFit(_ sender: Any?) { diffVC.imageView.zoomToFit(sender) }
 
     @objc func reload(_ sender: Any?) {
-        switch kind {
-        case .files: diffVC.reload()
-        case .folders:
-            scanFolders(keeping: sidebar?.selectedPath)
+        diffVC.confirmUnsavedChanges { [self] in
+            switch kind {
+            case .files: diffVC.reload()
+            case .folders: scanFolders(keeping: sidebar?.selectedPath)
+            }
         }
     }
 
     @objc func swapSides(_ sender: Any?) {
-        swap(&left, &right)
-        updateTitle()
-        switch kind {
-        case .files: diffVC.load(left: left, right: right)
-        case .folders: scanFolders(keeping: sidebar?.selectedPath)
+        diffVC.confirmUnsavedChanges { [self] in
+            swap(&left, &right)
+            updateTitle()
+            switch kind {
+            case .files: diffVC.load(left: left, right: right)
+            case .folders: scanFolders(keeping: sidebar?.selectedPath)
+            }
         }
     }
+
+    // MARK: Merging
+
+    @objc func copyToRight(_ sender: Any?) { diffVC.copyChange(to: .right) }
+    @objc func copyToLeft(_ sender: Any?) { diffVC.copyChange(to: .left) }
+    @objc func saveChanges(_ sender: Any?) { diffVC.save() }
+    @objc func undoEdit(_ sender: Any?) { diffVC.undo.undo() }
+    @objc func redoEdit(_ sender: Any?) { diffVC.undo.redo() }
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
@@ -200,6 +234,16 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
             return (diffVC.canvas.currentChange ?? -1) < diffVC.canvas.changeCount - 1
         case #selector(previousChange(_:)):
             return (diffVC.canvas.currentChange ?? 0) > 0
+        case #selector(copyToRight(_:)), #selector(copyToLeft(_:)):
+            return diffVC.canCopyChange
+        case #selector(saveChanges(_:)):
+            return diffVC.hasUnsavedChanges
+        case #selector(undoEdit(_:)):
+            item.title = diffVC.undo.undoMenuItemTitle
+            return diffVC.undo.canUndo
+        case #selector(redoEdit(_:)):
+            item.title = diffVC.undo.redoMenuItemTitle
+            return diffVC.undo.canRedo
         case #selector(zoomImageToFit(_:)):
             return diffVC.showsImage
         case #selector(nextFile(_:)), #selector(previousFile(_:)):
@@ -213,6 +257,14 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
     }
 
     // MARK: Window
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard diffVC.hasUnsavedChanges else { return true }
+        diffVC.confirmUnsavedChanges { [weak self] in self?.window?.close() }
+        return false
+    }
+
+    func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? { diffVC.undo }
 
     func windowWillClose(_ notification: Notification) {
         folderTask?.cancel()

@@ -141,6 +141,18 @@ final class FolderSidebarController: NSViewController, NSTableViewDataSource, NS
         updateHeader()
     }
 
+    /// Puts the selection back on a file without reporting it, after a switch the user cancelled.
+    func restoreSelection(_ path: String?) {
+        selectedPath = path
+        rebuildRows()
+    }
+
+    /// Records a new status for one file, after it was saved.
+    func setStatus(_ status: FolderEntry.Status, forPath path: String) {
+        guard let i = entries.firstIndex(where: { $0.path == path }) else { return }
+        apply([(i, status)])
+    }
+
     func finish() {
         finished = true
         updateHeader()

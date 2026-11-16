@@ -55,6 +55,12 @@ final class DiffCanvasView: NSView {
 
     /// Called when the current change or the change count changes.
     var onStateChange: (() -> Void)?
+    /// Whether changes can be copied across; shows the copy buttons on the current change.
+    var mergeEnabled = false {
+        didSet { if oldValue != mergeEnabled { needsDisplay = true } }
+    }
+    /// Called with the side to copy the current change to.
+    var onCopy: ((Side) -> Void)?
     /// Called with the pane and ribbon widths whenever they change.
     var onGeometryChange: ((CGFloat, CGFloat) -> Void)?
 
@@ -428,6 +434,7 @@ final class DiffCanvasView: NSView {
             ctx.restoreGState()
         }
         renderRibbon(ctx, m)
+        renderCopyButtons(ctx, m)
         renderStrip(ctx, m)
     }
 
@@ -651,6 +658,42 @@ final class DiffCanvasView: NSView {
         ctx.restoreGState()
     }
 
+    /// The copy-to-left and copy-to-right buttons of the current change, in the middle of its connector.
+    private func copyButtonRects() -> (left: CGRect, right: CGRect)? {
+        guard mergeEnabled, mode == .fluid, let m = model, let c = currentChange, c < m.changeSections.count else { return nil }
+        let s = m.sections[m.changeSections[c]]
+        let lt = s.leftY - sideScroll(.left) + Self.topInset, rt = s.rightY - sideScroll(.right) + Self.topInset
+        guard max(lt + s.leftHeight, rt + s.rightHeight) > 0, min(lt, rt) < bounds.height else { return nil }
+        let size: CGFloat = 20
+        let mid = (lt + s.leftHeight / 2 + rt + s.rightHeight / 2) / 2
+        let y = min(max(mid, size / 2 + 4), bounds.height - size / 2 - 4) - size / 2
+        let cx = paneWidth + ribbonWidth / 2
+        return (CGRect(x: cx - size - 2, y: y, width: size, height: size), CGRect(x: cx + 2, y: y, width: size, height: size))
+    }
+
+    private func renderCopyButtons(_ ctx: CGContext, _ m: DiffLayout) {
+        guard let rects = copyButtonRects(), let diff, let c = currentChange else { return }
+        let colors = pal.colors(diff.blocks[m.sections[m.changeSections[c]].block].kind)
+        for (rect, direction) in [(rects.left, CGFloat(-1)), (rects.right, CGFloat(1))] {
+            ctx.setFillColor(pal.ribbonBackground)
+            ctx.fillEllipse(in: rect.insetBy(dx: -2, dy: -2))
+            ctx.setFillColor(colors.gutterCurrent)
+            ctx.fillEllipse(in: rect)
+            let arrow = CGMutablePath()
+            arrow.move(to: CGPoint(x: rect.midX - 4.5 * direction, y: rect.midY))
+            arrow.addLine(to: CGPoint(x: rect.midX + 4.5 * direction, y: rect.midY))
+            arrow.move(to: CGPoint(x: rect.midX + 1 * direction, y: rect.midY - 3.5))
+            arrow.addLine(to: CGPoint(x: rect.midX + 4.5 * direction, y: rect.midY))
+            arrow.addLine(to: CGPoint(x: rect.midX + 1 * direction, y: rect.midY + 3.5))
+            ctx.addPath(arrow)
+            ctx.setStrokeColor(pal.white)
+            ctx.setLineWidth(1.6)
+            ctx.setLineCap(.round)
+            ctx.setLineJoin(.round)
+            ctx.strokePath()
+        }
+    }
+
     private var stripScale: CGFloat {
         let total = (model?.totalT ?? 0) + Self.topInset + Self.bottomInset
         return (bounds.height - 8) / max(total, bounds.height)
@@ -735,6 +778,10 @@ final class DiffCanvasView: NSView {
             scrollFromStrip(p.y)
             return
         }
+        if let buttons = copyButtonRects() {
+            if buttons.left.contains(p) { onCopy?(.left); return }
+            if buttons.right.contains(p) { onCopy?(.right); return }
+        }
         guard let side = side(at: p) else { return }
         focusSide = side
         switch hit(p, side: side) {
@@ -762,6 +809,21 @@ final class DiffCanvasView: NSView {
             selection = nil
             needsDisplay = true
         }
+    }
+
+    /// Right-clicking a change makes it current and offers to copy it across.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let p = convert(event.locationInWindow, from: nil)
+        guard mergeEnabled, let side = side(at: p), case .text(_, _, let change?) = hit(p, side: side) else { return nil }
+        if change != currentChange {
+            currentChange = change
+            onStateChange?()
+            needsDisplay = true
+        }
+        let menu = NSMenu()
+        menu.addItem(withTitle: "Copy to Right", action: #selector(ComparisonWindowController.copyToRight(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: "Copy to Left", action: #selector(ComparisonWindowController.copyToLeft(_:)), keyEquivalent: "")
+        return menu
     }
 
     override func mouseDragged(with e: NSEvent) {

@@ -24,6 +24,17 @@ final class DiffViewController: NSViewController {
     private var watcher: FileWatcher?
     private var canvasGeometry: (pane: CGFloat, ribbon: CGFloat) = (300, 64)
 
+    /// The two sides as they are being edited. They match the files until a change is copied across.
+    private var docs: [TextDocument] = [.empty, .empty]
+    /// Edits since each side was loaded or saved: up on every change and redo, down on undo.
+    private var editCounts = [0, 0]
+    /// What each file looked like on disk when it was last read or written here.
+    private var stamps: [FileStamp?] = [nil, nil]
+    let undo = UndoManager()
+    /// Called when a side becomes edited or clean.
+    var onEditStateChange: (() -> Void)?
+    var onSave: (() -> Void)?
+
     /// True while an image comparison is on screen instead of the text canvas.
     var showsImage: Bool { !imageView.isHidden }
 
@@ -68,6 +79,7 @@ final class DiffViewController: NSViewController {
             self?.updatePathBarGeometry()
         }
         canvas.onStateChange = { [weak self] in self?.updateChangeLabel() }
+        canvas.onCopy = { [weak self] side in self?.copyChange(to: side) }
         imageView.onStateChange = { [weak self] in
             self?.updatePathBarGeometry()
             self?.updateChangeLabel()
@@ -133,9 +145,12 @@ final class DiffViewController: NSViewController {
 
     // MARK: Loading
 
+    /// Reads both files from disk. Any unsaved edits are dropped; ask first with `confirmUnsavedChanges`.
     func load(left: URL?, right: URL?, keepScroll: Bool = false) {
         urls = (left, right)
         pathBar.urls = (left, right)
+        stamps = [left.flatMap(FileStamp.init), right.flatMap(FileStamp.init)]
+        resetEdits()
         generation += 1
         let gen = generation
         isLoading = true
@@ -148,7 +163,7 @@ final class DiffViewController: NSViewController {
             self.apply(result, keepScroll: keepScroll)
             let watched = [left, right].compactMap { $0 }
             if !watched.isEmpty {
-                self.watcher = FileWatcher(urls: watched) { [weak self] in self?.reload() }
+                self.watcher = FileWatcher(urls: watched) { [weak self] in self?.filesChanged() }
             }
         }
     }
@@ -164,6 +179,9 @@ final class DiffViewController: NSViewController {
         watcher = nil
         urls = (nil, nil)
         pathBar.urls = (nil, nil)
+        docs = [.empty, .empty]
+        stamps = [nil, nil]
+        resetEdits()
         canvas.setDiff(nil, columns: [[], []], preserveScroll: false)
         showImage(nil)
         placard.show(symbol: symbol, title: title, subtitle: subtitle)
@@ -189,14 +207,20 @@ final class DiffViewController: NSViewController {
                 if let l, let r { same = FolderCompare.contentsEqual(l, r) }
                 return .binary(identical: same, leftSize: ld.byteCount, rightSize: rd.byteCount)
             }
-            // Tokenizing each side is independent of the diff, so all three run side by side.
-            async let leftSyntax = syntax(ld, l)
-            async let rightSyntax = syntax(rd, r)
-            let diff = TextDiff(left: ld, right: rd)
-            return .text(diff, [Columns.compute(ld.lines), Columns.compute(rd.lines)], [await leftSyntax, await rightSyntax])
+            return await diff(ld, rd, l, r)
         } catch {
             return .failure(error.localizedDescription)
         }
+    }
+
+    /// Diffs two documents already in memory. Used for the first load and again after every edit.
+    @concurrent
+    static func diff(_ ld: TextDocument, _ rd: TextDocument, _ l: URL?, _ r: URL?) async -> LoadResult {
+        // Tokenizing each side is independent of the diff, so all three run side by side.
+        async let leftSyntax = syntax(ld, l)
+        async let rightSyntax = syntax(rd, r)
+        let diff = TextDiff(left: ld, right: rd)
+        return .text(diff, [Columns.compute(ld.lines), Columns.compute(rd.lines)], [await leftSyntax, await rightSyntax])
     }
 
     /// Files above this size are shown without syntax colours.
@@ -215,6 +239,7 @@ final class DiffViewController: NSViewController {
         case .text(let diff, let columns, let syntax):
             placard.isHidden = true
             showImage(nil)
+            docs = [diff.left, diff.right]
             canvas.setDiff(diff, columns: columns, syntax: syntax, preserveScroll: keepScroll)
             summary = Self.summary(diff.stats)
             bottomBar.statusLabel.stringValue = Self.status(diff)
@@ -242,6 +267,178 @@ final class DiffViewController: NSViewController {
         }
         updateChangeLabel()
         onSummaryChange?()
+    }
+
+    // MARK: Editing
+
+    /// Whether a side differs from its file on disk.
+    func isEdited(_ side: Side) -> Bool { editCounts[side.rawValue] != 0 }
+    var hasUnsavedChanges: Bool { editCounts != [0, 0] }
+
+    /// Copying needs a text diff of two existing files that can both be written back unchanged.
+    var canMerge: Bool {
+        !isLoading && canvas.diff != nil && urls.0 != nil && urls.1 != nil && docs[0].isLossless && docs[1].isLossless
+    }
+    var canCopyChange: Bool { canMerge && canvas.currentChange != nil }
+
+    /// Replaces the current change on `target` with the lines of the other side.
+    func copyChange(to target: Side) {
+        guard canMerge, let diff = canvas.diff, let c = canvas.currentChange, c < diff.changeBlocks.count else { return }
+        let block = diff.blocks[diff.changeBlocks[c]]
+        let t = target.rawValue, s = 1 - t
+        let from = s == 0 ? block.left : block.right, to = t == 0 ? block.left : block.right
+        let edited = docs[t].replacingLines(to, with: Array(docs[s].lines[from]), endsWithTerminator: docs[s].endsWithTerminator)
+        setDocument(edited, side: t, actionName: target == .right ? "Copy to Right" : "Copy to Left")
+    }
+
+    /// Installs a new working copy of one side, undoably, and diffs again.
+    private func setDocument(_ doc: TextDocument, side: Int, actionName: String) {
+        let old = docs[side]
+        undo.registerUndo(withTarget: self) { $0.setDocument(old, side: side, actionName: actionName) }
+        undo.setActionName(actionName)
+        editCounts[side] += undo.isUndoing ? -1 : 1
+        docs[side] = doc
+        rediff()
+        editStateChanged()
+    }
+
+    /// Diffs the working copies again, keeping the scroll position and the current change.
+    private func rediff() {
+        generation += 1
+        let gen = generation
+        isLoading = true
+        let l = docs[0], r = docs[1], urls = self.urls
+        Task { [weak self] in
+            let result = await Self.diff(l, r, urls.0, urls.1)
+            guard let self, gen == self.generation else { return }
+            self.isLoading = false
+            self.apply(result, keepScroll: true)
+        }
+    }
+
+    private func editStateChanged() {
+        pathBar.edited = (isEdited(.left), isEdited(.right))
+        updateChangeLabel()
+        onEditStateChange?()
+    }
+
+    private func resetEdits() {
+        editCounts = [0, 0]
+        undo.removeAllActions()
+        editStateChanged()
+    }
+
+    // MARK: Saving
+
+    /// Writes every edited side to its file. Returns false if something could not be saved,
+    /// after telling the user why.
+    @discardableResult
+    func save() -> Bool {
+        for side in 0..<2 where editCounts[side] != 0 {
+            guard let url = side == 0 ? urls.0 : urls.1 else { continue }
+            var data = docs[side].encoded()
+            if data == nil {
+                // Lines copied from the other side can hold characters this file's encoding lacks.
+                let alert = NSAlert()
+                alert.messageText = "“\(url.lastPathComponent)” can’t be saved as \(docs[side].encoding)"
+                alert.informativeText = "It now contains characters that \(docs[side].encoding) cannot represent. You can save it as UTF-8 instead."
+                alert.addButton(withTitle: "Save as UTF-8")
+                alert.addButton(withTitle: "Cancel")
+                guard alert.runModal() == .alertFirstButtonReturn else { return false }
+                docs[side].textEncoding = .utf8
+                data = docs[side].encoded()
+            }
+            do {
+                try Self.write(data ?? Data(), to: url)
+            } catch {
+                let alert = NSAlert(error: error)
+                alert.messageText = "“\(url.lastPathComponent)” could not be saved"
+                alert.informativeText = error.localizedDescription
+                alert.runModal()
+                return false
+            }
+            stamps[side] = FileStamp(url)
+            editCounts[side] = 0
+        }
+        editStateChanged()
+        onSave?()
+        return true
+    }
+
+    /// Every write to a compared file goes through here. Replaces the file in one step and keeps its
+    /// permissions; a symbolic link keeps pointing at the file that is rewritten.
+    private static func write(_ data: Data, to url: URL) throws {
+        let target = url.resolvingSymlinksInPath()
+        let permissions = (try? FileManager.default.attributesOfItem(atPath: target.path))?[.posixPermissions]
+        try data.write(to: target, options: .atomic)
+        if let permissions {
+            try? FileManager.default.setAttributes([.posixPermissions: permissions], ofItemAtPath: target.path)
+        }
+    }
+
+    /// Runs `proceed` once nothing is unsaved: straight away, or after the user saves or discards
+    /// their changes. Runs `cancel` instead if they back out or the save fails.
+    func confirmUnsavedChanges(cancel: (() -> Void)? = nil, _ proceed: @escaping () -> Void) {
+        guard hasUnsavedChanges, let window = view.window else {
+            proceed()
+            return
+        }
+        let names = [Side.left, .right].filter(isEdited).compactMap { ($0 == .left ? urls.0 : urls.1)?.lastPathComponent }
+        let alert = NSAlert()
+        alert.messageText = "Do you want to save the changes you made to “\(names.joined(separator: "” and “"))”?"
+        alert.informativeText = "Your changes will be lost if you don’t save them."
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Don’t Save")
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self else { return }
+            switch response {
+            case .alertFirstButtonReturn:
+                if self.save() { proceed() } else { cancel?() }
+            case .alertThirdButtonReturn:
+                self.resetEdits()
+                proceed()
+            default:
+                cancel?()
+            }
+        }
+    }
+
+    /// A compared file changed on disk. Our own saves are recognised by their timestamp and ignored.
+    private func filesChanged() {
+        let current = [urls.0.flatMap(FileStamp.init), urls.1.flatMap(FileStamp.init)]
+        guard current != stamps else { return }
+        guard hasUnsavedChanges else {
+            reload()
+            return
+        }
+        // Take in changes to sides that have no edits; ask about the ones that do.
+        var conflicts: [String] = []
+        var refreshed = false
+        for side in 0..<2 where current[side] != stamps[side] {
+            guard let url = side == 0 ? urls.0 : urls.1 else { continue }
+            if editCounts[side] == 0, let doc = try? TextDocument.load(url), !doc.isBinary {
+                docs[side] = doc
+                refreshed = true
+            } else {
+                conflicts.append(url.lastPathComponent)
+            }
+            stamps[side] = current[side]
+        }
+        if refreshed {
+            // Undoing past this point would bring back the old contents of the refreshed side.
+            undo.removeAllActions()
+            rediff()
+        }
+        guard !conflicts.isEmpty, let window = view.window else { return }
+        let alert = NSAlert()
+        alert.messageText = "“\(conflicts.joined(separator: "” and “"))” changed on disk"
+        alert.informativeText = "You have unsaved changes to it here. Keep them, or reload the file and lose them?"
+        alert.addButton(withTitle: "Keep My Changes")
+        alert.addButton(withTitle: "Reload")
+        alert.beginSheetModal(for: window) { [weak self] response in
+            if response == .alertSecondButtonReturn { self?.reload() }
+        }
     }
 
     static func summary(_ s: DiffStats) -> String {
@@ -290,6 +487,9 @@ final class DiffViewController: NSViewController {
     }
 
     private func updateChangeLabel() {
+        canvas.mergeEnabled = canMerge
+        bottomBar.copyLeftButton.isEnabled = canCopyChange
+        bottomBar.copyRightButton.isEnabled = canCopyChange
         if let c = imageView.comparison, showsImage {
             let n = c.diff.regions.count
             bottomBar.changeLabel.stringValue = n == 0 ? "No differences" : "\(n.formatted()) Region\(n == 1 ? "" : "s")"
@@ -307,5 +507,18 @@ final class DiffViewController: NSViewController {
         bottomBar.previousButton.isEnabled = n > 0 && (canvas.currentChange ?? 0) > 0
         bottomBar.nextButton.isEnabled = n > 0 && (canvas.currentChange ?? -1) < n - 1
         bottomBar.setToggle(bottomBar.expandButton, on: canvas.expandAll)
+    }
+}
+
+/// Enough about a file on disk to tell whether it has been written since we last looked.
+struct FileStamp: Equatable {
+    var modified: Date
+    var size: Int
+
+    init?(_ url: URL) {
+        guard let v = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey]),
+              let modified = v.contentModificationDate else { return nil }
+        self.modified = modified
+        size = v.fileSize ?? 0
     }
 }

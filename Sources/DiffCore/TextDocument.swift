@@ -9,29 +9,70 @@ public enum LineEnding: String, Sendable {
     case none = "None"
 }
 
+/// What ends one line. Only the last line of a document may have `.none`.
+public enum LineTerminator: UInt8, Sendable {
+    case none, lf, crlf, cr
+
+    public var string: String {
+        switch self {
+        case .none: ""
+        case .lf: "\n"
+        case .crlf: "\r\n"
+        case .cr: "\r"
+        }
+    }
+}
+
+/// How a document's text is stored on disk.
+public enum TextEncoding: Sendable, Equatable {
+    case utf8, utf8BOM, utf16LittleEndian, utf16BigEndian, latin1
+
+    public var name: String {
+        switch self {
+        case .utf8: "UTF-8"
+        case .utf8BOM: "UTF-8 with BOM"
+        case .utf16LittleEndian, .utf16BigEndian: "UTF-16"
+        case .latin1: "Latin-1"
+        }
+    }
+}
+
 /// A text file split into lines. Line strings never contain their terminators.
+///
+/// `lines`, `terminators` and `textEncoding` together hold everything needed to write the file
+/// back byte for byte, so that saving an edited document changes only the edited lines.
 public struct TextDocument: Sendable {
     public var url: URL?
-    public var lines: [String]
+    public private(set) var lines: [String]
+    /// The terminator of each line, parallel to `lines`.
+    public private(set) var terminators: [LineTerminator]
     public var isBinary: Bool
-    public var lineEnding: LineEnding
-    public var encoding: String
+    public private(set) var lineEnding: LineEnding
+    public var textEncoding: TextEncoding
     public var byteCount: Int
+    /// False when the file held something its encoding cannot express, so writing it back would alter it.
+    public private(set) var isLossless = true
 
+    /// The encoding's display name.
+    public var encoding: String { textEncoding.name }
+
+    /// - Parameter terminators: one per line; when omitted every line ends with a line feed.
     public init(
         lines: [String],
+        terminators: [LineTerminator]? = nil,
         url: URL? = nil,
         isBinary: Bool = false,
-        lineEnding: LineEnding = .none,
-        encoding: String = "UTF-8",
+        encoding: TextEncoding = .utf8,
         byteCount: Int = 0
     ) {
+        precondition(terminators == nil || terminators!.count == lines.count)
         self.lines = lines
+        self.terminators = terminators ?? [LineTerminator](repeating: .lf, count: lines.count)
         self.url = url
         self.isBinary = isBinary
-        self.lineEnding = lineEnding
-        self.encoding = encoding
+        self.textEncoding = encoding
         self.byteCount = byteCount
+        lineEnding = terminators == nil ? .none : Self.summary(self.terminators)
     }
 
     public static let empty = TextDocument(lines: [])
@@ -53,8 +94,10 @@ public struct TextDocument: Sendable {
             let b0 = data[data.startIndex], b1 = data[data.startIndex + 1]
             if (b0 == 0xFF && b1 == 0xFE) || (b0 == 0xFE && b1 == 0xFF) {
                 let text = String(data: data, encoding: .utf16) ?? ""
-                var doc = fromUTF8(Array(text.utf8), url: url, encoding: "UTF-16")
+                var doc = fromUTF8(Array(text.utf8), url: url, encoding: b0 == 0xFF ? .utf16LittleEndian : .utf16BigEndian)
                 doc.byteCount = count
+                // Unpaired surrogates and odd lengths do not survive decoding.
+                doc.isLossless = doc.encoded() == data
                 return doc
             }
         }
@@ -67,15 +110,15 @@ public struct TextDocument: Sendable {
                 return TextDocument(lines: [], url: url, isBinary: true, byteCount: count)
             }
             var body = UnsafeBufferPointer(rebasing: bytes[...])
-            var encoding = "UTF-8"
+            var encoding = TextEncoding.utf8
             if bytes.count >= 3, bytes[0] == 0xEF, bytes[1] == 0xBB, bytes[2] == 0xBF {
                 body = UnsafeBufferPointer(rebasing: bytes[3...])
-                encoding = "UTF-8 with BOM"
+                encoding = .utf8BOM
             }
             if String(validating: body, as: UTF8.self) == nil {
                 // Latin-1 maps every byte, so this never fails and never loses data.
                 let text = String(data: data, encoding: .isoLatin1) ?? ""
-                var doc = fromUTF8(Array(text.utf8), url: url, encoding: "Latin-1")
+                var doc = fromUTF8(Array(text.utf8), url: url, encoding: .latin1)
                 doc.byteCount = count
                 return doc
             }
@@ -85,15 +128,16 @@ public struct TextDocument: Sendable {
         }
     }
 
-    private static func fromUTF8(_ bytes: [UInt8], url: URL?, encoding: String) -> TextDocument {
+    private static func fromUTF8(_ bytes: [UInt8], url: URL?, encoding: TextEncoding) -> TextDocument {
         bytes.withUnsafeBufferPointer { split($0, url: url, encoding: encoding) }
     }
 
     /// Splits UTF-8 bytes on LF, CRLF and CR.
-    static func split(_ bytes: UnsafeBufferPointer<UInt8>, url: URL?, encoding: String) -> TextDocument {
+    static func split(_ bytes: UnsafeBufferPointer<UInt8>, url: URL?, encoding: TextEncoding) -> TextDocument {
         var lines: [String] = []
+        var terminators: [LineTerminator] = []
         lines.reserveCapacity(bytes.count / 32 + 1)
-        var lf = 0, crlf = 0, cr = 0
+        terminators.reserveCapacity(bytes.count / 32 + 1)
         var start = 0, i = 0
         let n = bytes.count
         @inline(__always) func line(_ a: Int, _ b: Int) -> String {
@@ -102,23 +146,98 @@ public struct TextDocument: Sendable {
         while i < n {
             let c = bytes[i]
             if c == 0x0A {
-                lines.append(line(start, i)); lf += 1; i += 1; start = i
+                lines.append(line(start, i)); terminators.append(.lf); i += 1; start = i
             } else if c == 0x0D {
                 lines.append(line(start, i))
-                if i + 1 < n && bytes[i + 1] == 0x0A { crlf += 1; i += 2 } else { cr += 1; i += 1 }
+                if i + 1 < n && bytes[i + 1] == 0x0A { terminators.append(.crlf); i += 2 } else { terminators.append(.cr); i += 1 }
                 start = i
             } else {
                 i += 1
             }
         }
-        if start < n { lines.append(line(start, n)) }
-        let kinds = (lf > 0 ? 1 : 0) + (crlf > 0 ? 1 : 0) + (cr > 0 ? 1 : 0)
-        let ending: LineEnding
-        switch kinds {
-        case 0: ending = .none
-        case 1: ending = lf > 0 ? .lf : (crlf > 0 ? .crlf : .cr)
-        default: ending = .mixed
+        if start < n {
+            lines.append(line(start, n))
+            terminators.append(.none)
         }
-        return TextDocument(lines: lines, url: url, lineEnding: ending, encoding: encoding)
+        return TextDocument(lines: lines, terminators: terminators, url: url, encoding: encoding)
     }
+
+    /// The style shared by every terminated line, or `.mixed`.
+    private static func summary(_ terminators: [LineTerminator]) -> LineEnding {
+        var lf = false, crlf = false, cr = false
+        for t in terminators {
+            switch t {
+            case .lf: lf = true
+            case .crlf: crlf = true
+            case .cr: cr = true
+            case .none: break
+            }
+        }
+        switch (lf, crlf, cr) {
+        case (false, false, false): return .none
+        case (true, false, false): return .lf
+        case (false, true, false): return .crlf
+        case (false, false, true): return .cr
+        default: return .mixed
+        }
+    }
+
+    // MARK: Writing and editing
+
+    /// The bytes of the document in its own encoding, or nil when the text cannot be expressed in it
+    /// (a character outside Latin-1 in a Latin-1 file).
+    public func encoded() -> Data? {
+        var text = ""
+        text.reserveCapacity(byteCount + lines.count)
+        for i in lines.indices {
+            text += lines[i]
+            text += terminators[i].string
+        }
+        switch textEncoding {
+        case .utf8: return Data(text.utf8)
+        case .utf8BOM: return Data([0xEF, 0xBB, 0xBF]) + Data(text.utf8)
+        case .utf16LittleEndian: return text.data(using: .utf16LittleEndian).map { Data([0xFF, 0xFE]) + $0 }
+        case .utf16BigEndian: return text.data(using: .utf16BigEndian).map { Data([0xFE, 0xFF]) + $0 }
+        case .latin1: return text.data(using: .isoLatin1)
+        }
+    }
+
+    /// The terminator new lines get: the document's own style, or its most common one when mixed.
+    public var preferredTerminator: LineTerminator {
+        switch lineEnding {
+        case .lf, .none: return .lf
+        case .crlf: return .crlf
+        case .cr: return .cr
+        case .mixed:
+            var counts = [0, 0, 0, 0]
+            for t in terminators { counts[Int(t.rawValue)] += 1 }
+            return counts[2] > counts[1] && counts[2] >= counts[3] ? .crlf : (counts[3] > counts[1] ? .cr : .lf)
+        }
+    }
+
+    /// Replaces a range of lines. Untouched lines keep their terminators; new lines take this document's
+    /// style. Whether the file ends with a line break stays as it was, or follows `endsWithTerminator`
+    /// when the document was empty.
+    public func replacingLines(_ range: Range<Int>, with newLines: [String], endsWithTerminator: Bool = true) -> TextDocument {
+        precondition(range.lowerBound >= 0 && range.upperBound <= lines.count)
+        let style = preferredTerminator
+        let terminated = lines.isEmpty ? endsWithTerminator : terminators[terminators.count - 1] != .none
+        var doc = self
+        doc.lines.replaceSubrange(range, with: newLines)
+        doc.terminators.replaceSubrange(range, with: [LineTerminator](repeating: style, count: newLines.count))
+        // A line that used to be last, or the new last line, may now carry the wrong terminator.
+        let count = doc.lines.count
+        for i in [range.lowerBound - 1, range.lowerBound + newLines.count - 1, count - 2] where i >= 0 && i < count - 1 {
+            if doc.terminators[i] == .none { doc.terminators[i] = style }
+        }
+        if count > 0 {
+            let last = doc.terminators[count - 1]
+            doc.terminators[count - 1] = terminated ? (last == .none ? style : last) : .none
+        }
+        doc.lineEnding = Self.summary(doc.terminators)
+        return doc
+    }
+
+    /// True when the last line ends with a line break (or there are no lines to end).
+    public var endsWithTerminator: Bool { terminators.last.map { $0 != .none } ?? true }
 }

@@ -10,6 +10,10 @@ struct LaunchOptions {
     var zoom: CGFloat?
     var wrap: Bool?
     var syntax: Bool?
+    /// Snapshot runs only: copy the current change to this side, and optionally save, before capturing.
+    var copy: Side?
+    var save = false
+    var undo = false
     var size = CGSize(width: 1360, height: 860)
     var change: Int?
     var fontSize: CGFloat?
@@ -34,6 +38,9 @@ struct LaunchOptions {
             case "--zoom": o.zoom = next().flatMap { Double($0) }.map { CGFloat($0) }
             case "--wrap": o.wrap = true
             case "--no-wrap": o.wrap = false
+            case "--copy": o.copy = next().flatMap { $0 == "left" ? .left : ($0 == "right" ? .right : nil) }
+            case "--save": o.save = true
+            case "--undo": o.undo = true
             case "--syntax": o.syntax = true
             case "--no-syntax": o.syntax = false
             case "--bench": o.bench = true
@@ -99,6 +106,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let edited = comparisons.filter { $0.diffVC.hasUnsavedChanges }
+        guard !edited.isEmpty else { return .terminateNow }
+        let alert = NSAlert()
+        alert.messageText = edited.count == 1
+            ? "You have unsaved changes in one comparison."
+            : "You have unsaved changes in \(edited.count) comparisons."
+        alert.informativeText = "Your changes will be lost if you don’t save them."
+        alert.addButton(withTitle: edited.count == 1 ? "Save" : "Save All")
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Discard Changes")
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            return edited.allSatisfy { $0.diffVC.save() } ? .terminateNow : .terminateCancel
+        case .alertThirdButtonReturn:
+            return .terminateNow
+        default:
+            return .terminateCancel
+        }
+    }
 
     // MARK: Windows
 
@@ -248,10 +276,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             item("Open…", #selector(newComparison(_:)), "o"),
             .separator(),
             item("Close", #selector(NSWindow.performClose(_:)), "w"),
+            item("Save", #selector(ComparisonWindowController.saveChanges(_:)), "s"),
             item("Reload", #selector(ComparisonWindowController.reload(_:)), "r"),
             item("Swap Sides", #selector(ComparisonWindowController.swapSides(_:)), "s", [.command, .shift]),
         ])
         _ = submenu("Edit", [
+            item("Undo", #selector(ComparisonWindowController.undoEdit(_:)), "z"),
+            item("Redo", #selector(ComparisonWindowController.redoEdit(_:)), "z", [.command, .shift]),
+            .separator(),
             item("Copy", #selector(DiffCanvasView.copy(_:)), "c"),
             item("Select All", #selector(NSResponder.selectAll(_:)), "a"),
         ])
@@ -290,6 +322,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             .separator(),
             item("Next File", #selector(ComparisonWindowController.nextFile(_:)), down, [.command, .option]),
             item("Previous File", #selector(ComparisonWindowController.previousFile(_:)), up, [.command, .option]),
+        ])
+        let right = String(Character(UnicodeScalar(NSRightArrowFunctionKey)!))
+        let left = String(Character(UnicodeScalar(NSLeftArrowFunctionKey)!))
+        _ = submenu("Merge", [
+            item("Copy to Right", #selector(ComparisonWindowController.copyToRight(_:)), right, [.command, .option]),
+            item("Copy to Left", #selector(ComparisonWindowController.copyToLeft(_:)), left, [.command, .option]),
         ])
         let window = submenu("Window", [
             item("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m"),

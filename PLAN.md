@@ -220,15 +220,23 @@ Sections 1 to 10 describe version 1 as it was planned and built. This section is
 |---|---|---|
 | – | Image diff: side by side, overlay, pixel difference | Shipped |
 | – | Syntax highlighting, 29 languages and formats | Shipped |
-| 1 | Merge stage 1: copy changes between sides, save, undo | Next |
-| 2 | Merge stage 2: edit in place | Planned |
-| 3 | Three-way merge, usable as `git mergetool` | Planned |
-| 4 | Unified layout, ignore whitespace, find in pane | Planned |
-| 5 | Mac App Store build | Planned |
+| – | Merge stage 1: copy changes between sides, save, undo | Shipped |
+| 1 | Merge stage 2: edit in place | Next |
+| 2 | Three-way merge, usable as `git mergetool` | Planned |
+| 3 | Unified layout, ignore whitespace, find in pane | Planned |
+| 4 | Mac App Store build | Planned |
 
 Proportional fonts for prose (section 10) stay unscheduled.
 
 ### 11.1 Merge stage 1: copy changes, save, undo
+
+Shipped. What follows is the plan as written; it was built that way except where noted here:
+
+- The copy buttons sit on the current change in the ribbon in Fluid layout. Blocks layout has no ribbon, so there the same actions are in the bottom bar, the Merge menu (⌥⌘→ and ⌥⌘←) and a right-click menu on the change, all of which work in both layouts. There are no gutter buttons.
+- One Save (⌘S) writes every edited side; there is no separate Save All.
+- Quitting with unsaved changes shows one prompt for all windows rather than one per window.
+- When a file changes on disk while the other side has edits, the unedited side is refreshed in place and the undo history is cleared; the question is only asked when the changed file is itself edited.
+- A file whose text cannot be written back unchanged (invalid UTF-16) cannot be merged into. A Latin-1 file that receives characters outside Latin-1 is offered a save as UTF-8.
 
 Merge and edit is split in two because the halves differ so much in size. Copying a whole change from one side to the other fits the existing model: every change is already a block with a line range on each side, and a full re-diff (about 43 ms for 100,000 lines, tokenizing about 80 ms in parallel) is fast enough to run after each copy. Typing into a pane is a different job (11.2).
 
