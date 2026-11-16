@@ -48,6 +48,11 @@ enum Theme {
     static let thumb = dynamic(NSColor(white: 0, alpha: 0.10), NSColor(white: 1, alpha: 0.13))
     static let thumbBorder = dynamic(NSColor(white: 0, alpha: 0.18), NSColor(white: 1, alpha: 0.22))
 
+    // Image comparison
+    static let checkerLight = hex(0xFFFFFF, 0x2B2A31)
+    static let checkerDark = hex(0xECEAF1, 0x222127)
+    static let imageDifference = hex(0x2F66D0, 0x86AFF5)
+
     struct ChangeColors {
         let body: NSColor
         let bodyCurrent: NSColor

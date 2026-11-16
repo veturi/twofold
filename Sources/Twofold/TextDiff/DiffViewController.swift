@@ -6,12 +6,14 @@ import DiffCore
 final class DiffViewController: NSViewController {
     enum LoadResult: Sendable {
         case text(TextDiff, [[Int32]])
+        case image(ImageComparison)
         case binary(identical: Bool, leftSize: Int, rightSize: Int)
         case failure(String)
     }
 
     let pathBar = PathBarView()
     let canvas = DiffCanvasView()
+    let imageView = ImageDiffView()
     let bottomBar = BottomBarView()
     let placard = PlacardView()
 
@@ -20,6 +22,10 @@ final class DiffViewController: NSViewController {
     private(set) var summary = ""
     private var generation = 0
     private var watcher: FileWatcher?
+    private var canvasGeometry: (pane: CGFloat, ribbon: CGFloat) = (300, 64)
+
+    /// True while an image comparison is on screen instead of the text canvas.
+    var showsImage: Bool { !imageView.isHidden }
 
     var onSummaryChange: (() -> Void)?
     var onDrop: (([URL]) -> Void)? {
@@ -29,11 +35,12 @@ final class DiffViewController: NSViewController {
     override func loadView() {
         let root = DropView()
         root.wantsLayer = true
-        for v in [pathBar, canvas, bottomBar, placard] as [NSView] {
+        for v in [pathBar, canvas, imageView, bottomBar, placard] as [NSView] {
             v.translatesAutoresizingMaskIntoConstraints = false
             root.addSubview(v)
         }
         placard.isHidden = true
+        imageView.isHidden = true
         NSLayoutConstraint.activate([
             pathBar.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor),
             pathBar.leadingAnchor.constraint(equalTo: root.leadingAnchor),
@@ -51,12 +58,23 @@ final class DiffViewController: NSViewController {
             placard.bottomAnchor.constraint(equalTo: canvas.bottomAnchor),
             placard.leadingAnchor.constraint(equalTo: canvas.leadingAnchor),
             placard.trailingAnchor.constraint(equalTo: canvas.trailingAnchor),
+            imageView.topAnchor.constraint(equalTo: canvas.topAnchor),
+            imageView.bottomAnchor.constraint(equalTo: canvas.bottomAnchor),
+            imageView.leadingAnchor.constraint(equalTo: canvas.leadingAnchor),
+            imageView.trailingAnchor.constraint(equalTo: canvas.trailingAnchor),
         ])
         canvas.onGeometryChange = { [weak self] pane, ribbon in
-            self?.pathBar.paneWidth = pane
-            self?.pathBar.ribbonWidth = ribbon
+            self?.canvasGeometry = (pane, ribbon)
+            self?.updatePathBarGeometry()
         }
         canvas.onStateChange = { [weak self] in self?.updateChangeLabel() }
+        imageView.onStateChange = { [weak self] in
+            self?.updatePathBarGeometry()
+            self?.updateChangeLabel()
+        }
+        for b in [bottomBar.zoomInButton, bottomBar.zoomOutButton, bottomBar.fitButton] { b.target = imageView }
+        bottomBar.opacitySlider.target = self
+        bottomBar.opacitySlider.action = #selector(opacityChanged(_:))
         view = root
         applyPreferences()
         updateChangeLabel()
@@ -64,7 +82,37 @@ final class DiffViewController: NSViewController {
 
     override func viewDidAppear() {
         super.viewDidAppear()
-        view.window?.makeFirstResponder(canvas)
+        view.window?.makeFirstResponder(showsImage ? imageView : canvas)
+    }
+
+    @objc private func opacityChanged(_ sender: NSSlider) {
+        imageView.overlayOpacity = CGFloat(sender.doubleValue)
+    }
+
+    /// The path bar lines its two halves up with the panes below it.
+    private func updatePathBarGeometry() {
+        if showsImage {
+            // The image view has no ribbon or overview strip, so its panes meet at the true centre.
+            pathBar.paneWidth = floor((imageView.bounds.width - 1) / 2)
+            pathBar.ribbonWidth = 1
+        } else {
+            pathBar.paneWidth = canvasGeometry.pane
+            pathBar.ribbonWidth = canvasGeometry.ribbon
+        }
+    }
+
+    /// Swaps the text canvas for the image view, or back.
+    private func showImage(_ comparison: ImageComparison?, keepView: Bool = false) {
+        let wasShown = showsImage
+        imageView.isHidden = comparison == nil
+        imageView.setComparison(comparison, preserveView: keepView && wasShown)
+        bottomBar.showsImageControls = comparison != nil
+        updatePathBarGeometry()
+        guard wasShown != showsImage, let window = view.window else { return }
+        // Move keyboard focus along with the content, but leave it alone if it is in the sidebar.
+        if window.firstResponder === (wasShown ? imageView : canvas) {
+            window.makeFirstResponder(wasShown ? canvas : imageView)
+        }
     }
 
     func applyPreferences() {
@@ -73,6 +121,9 @@ final class DiffViewController: NSViewController {
         canvas.wrapLines = p.wrapLines
         canvas.showInvisibles = p.showInvisibles
         canvas.setFontSize(p.fontSize)
+        imageView.mode = p.imageMode
+        bottomBar.imageModeControl.selectedSegment = ImageMode.allCases.firstIndex(of: p.imageMode) ?? 0
+        bottomBar.showsOpacity = p.imageMode == .overlay
         bottomBar.setToggle(bottomBar.wrapButton, on: p.wrapLines)
         bottomBar.setToggle(bottomBar.invisiblesButton, on: p.showInvisibles)
         bottomBar.setToggle(bottomBar.expandButton, on: canvas.expandAll)
@@ -112,6 +163,7 @@ final class DiffViewController: NSViewController {
         urls = (nil, nil)
         pathBar.urls = (nil, nil)
         canvas.setDiff(nil, columns: [[], []], preserveScroll: false)
+        showImage(nil)
         placard.show(symbol: symbol, title: title, subtitle: subtitle)
         summary = ""
         bottomBar.statusLabel.stringValue = ""
@@ -130,6 +182,7 @@ final class DiffViewController: NSViewController {
             let ld = try l.map { try TextDocument.load($0) } ?? .empty
             let rd = try r.map { try TextDocument.load($0) } ?? .empty
             if ld.isBinary || rd.isBinary {
+                if let image = ImageComparison.load(l, r) { return .image(image) }
                 var same = false
                 if let l, let r { same = FolderCompare.contentsEqual(l, r) }
                 return .binary(identical: same, leftSize: ld.byteCount, rightSize: rd.byteCount)
@@ -145,10 +198,18 @@ final class DiffViewController: NSViewController {
         switch result {
         case .text(let diff, let columns):
             placard.isHidden = true
+            showImage(nil)
             canvas.setDiff(diff, columns: columns, preserveScroll: keepScroll)
             summary = Self.summary(diff.stats)
             bottomBar.statusLabel.stringValue = Self.status(diff)
+        case .image(let comparison):
+            placard.isHidden = true
+            canvas.setDiff(nil, columns: [[], []], preserveScroll: false)
+            showImage(comparison, keepView: keepScroll)
+            summary = Self.summary(comparison.diff)
+            bottomBar.statusLabel.stringValue = Self.status(comparison)
         case .binary(let identical, let ls, let rs):
+            showImage(nil)
             canvas.setDiff(nil, columns: [[], []], preserveScroll: false)
             let f = ByteCountFormatter()
             placard.show(symbol: "doc.zipper",
@@ -157,6 +218,7 @@ final class DiffViewController: NSViewController {
             summary = identical ? "Binary, identical" : "Binary files differ"
             bottomBar.statusLabel.stringValue = ""
         case .failure(let message):
+            showImage(nil)
             canvas.setDiff(nil, columns: [[], []], preserveScroll: false)
             placard.show(symbol: "exclamationmark.triangle", title: "Could not open file", subtitle: message)
             summary = "Could not open file"
@@ -190,7 +252,34 @@ final class DiffViewController: NSViewController {
         return parts.joined(separator: "   ·   ")
     }
 
+    static func summary(_ d: ImageDiff) -> String {
+        guard !d.isIdentical else { return "Images are identical" }
+        let percent = d.fraction * 100
+        let share = percent >= 10 ? String(format: "%.0f", percent)
+            : percent >= 0.1 ? String(format: "%.1f", percent)
+            : percent >= 0.01 ? String(format: "%.2f", percent) : "<0.01"
+        return "\(d.differingPixels.formatted()) pixel\(d.differingPixels == 1 ? "" : "s") differ (\(share)%)"
+    }
+
+    static func status(_ c: ImageComparison) -> String {
+        func text(_ s: CGSize) -> String { "\(Int(s.width)) × \(Int(s.height))" }
+        var parts: [String] = []
+        switch (c.leftSize, c.rightSize) {
+        case let (l?, r?) where l != r: parts.append("Size: \(text(l)) → \(text(r))")
+        case let (s?, _), let (nil, s?): parts.append(text(s))
+        default: break
+        }
+        if c.reduced { parts.append("Compared at reduced size") }
+        return parts.joined(separator: "   ·   ")
+    }
+
     private func updateChangeLabel() {
+        if let c = imageView.comparison, showsImage {
+            let n = c.diff.regions.count
+            bottomBar.changeLabel.stringValue = n == 0 ? "No differences" : "\(n.formatted()) Region\(n == 1 ? "" : "s")"
+            bottomBar.zoomLabel.stringValue = "\(Int((imageView.scale * 100).rounded()))%"
+            return
+        }
         let n = canvas.changeCount
         if n == 0 {
             bottomBar.changeLabel.stringValue = canvas.diff == nil ? "" : "No changes"

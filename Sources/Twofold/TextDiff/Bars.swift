@@ -108,6 +108,7 @@ enum Badge {
 }
 
 /// Bottom bar: view toggles on the left, status in the middle, change navigation on the right.
+/// For an image comparison the toggles give way to the image mode and the navigation to zoom controls.
 @MainActor
 final class BottomBarView: NSView {
     static let height: CGFloat = 32
@@ -119,6 +120,38 @@ final class BottomBarView: NSView {
     let changeLabel = NSTextField(labelWithString: "")
     let previousButton = BottomBarView.iconButton("chevron.up", "Previous Change", #selector(ComparisonWindowController.previousChange(_:)))
     let nextButton = BottomBarView.iconButton("chevron.down", "Next Change", #selector(ComparisonWindowController.nextChange(_:)))
+
+    let imageModeControl: NSSegmentedControl = {
+        let c = NSSegmentedControl(labels: ImageMode.allCases.map(\.title), trackingMode: .selectOne,
+                                   target: nil, action: #selector(AppDelegate.setImageMode(_:)))
+        c.controlSize = .small
+        c.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        return c
+    }()
+    /// Overlay mode's cross-fade from A to B.
+    let opacitySlider: NSSlider = {
+        let s = NSSlider(value: 0.5, minValue: 0, maxValue: 1, target: nil, action: nil)
+        s.controlSize = .small
+        s.toolTip = "Blend between A and B"
+        s.translatesAutoresizingMaskIntoConstraints = false
+        s.widthAnchor.constraint(equalToConstant: 120).isActive = true
+        return s
+    }()
+    private let opacityLabels = [NSTextField(labelWithString: "A"), NSTextField(labelWithString: "B")]
+    let zoomLabel = NSTextField(labelWithString: "")
+    let zoomOutButton = BottomBarView.iconButton("minus.magnifyingglass", "Zoom Out", #selector(ImageDiffView.zoomOut(_:)))
+    let zoomInButton = BottomBarView.iconButton("plus.magnifyingglass", "Zoom In", #selector(ImageDiffView.zoomIn(_:)))
+    let fitButton = BottomBarView.iconButton("arrow.up.left.and.arrow.down.right", "Zoom to Fit", #selector(ImageDiffView.zoomToFit(_:)))
+
+    /// Switches between the text controls and the image controls.
+    var showsImageControls = false { didSet { updateVisibility() } }
+    var showsOpacity = false { didSet { updateVisibility() } }
+
+    private func updateVisibility() {
+        for v in [wrapButton, invisiblesButton, expandButton, previousButton, nextButton] { v.isHidden = showsImageControls }
+        for v in [imageModeControl, zoomLabel, zoomOutButton, zoomInButton, fitButton] as [NSView] { v.isHidden = !showsImageControls }
+        for v in [opacitySlider] + opacityLabels as [NSView] { v.isHidden = !(showsImageControls && showsOpacity) }
+    }
 
     static func iconButton(_ symbol: String, _ tip: String, _ action: Selector) -> NSButton {
         let image = NSImage(systemSymbolName: symbol, accessibilityDescription: tip)
@@ -135,16 +168,23 @@ final class BottomBarView: NSView {
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        for l in [statusLabel, changeLabel] {
+        for l in [statusLabel, changeLabel, zoomLabel] + opacityLabels {
             l.font = .systemFont(ofSize: 12)
             l.textColor = Theme.secondaryText
             l.lineBreakMode = .byTruncatingTail
         }
-        let left = NSStackView(views: [wrapButton, invisiblesButton, expandButton])
+        zoomLabel.alignment = .right
+        zoomLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+        let left = NSStackView(views: [wrapButton, invisiblesButton, expandButton,
+                                       imageModeControl, opacityLabels[0], opacitySlider, opacityLabels[1]])
         left.spacing = 4
-        let right = NSStackView(views: [changeLabel, previousButton, nextButton])
+        left.setCustomSpacing(14, after: imageModeControl)
+        let right = NSStackView(views: [changeLabel, previousButton, nextButton, zoomLabel, zoomOutButton, zoomInButton, fitButton])
         right.spacing = 6
         right.setCustomSpacing(12, after: changeLabel)
+        right.setCustomSpacing(2, after: zoomOutButton)
+        right.setCustomSpacing(2, after: zoomInButton)
+        updateVisibility()
         for v in [left, right, statusLabel] as [NSView] {
             v.translatesAutoresizingMaskIntoConstraints = false
             addSubview(v)

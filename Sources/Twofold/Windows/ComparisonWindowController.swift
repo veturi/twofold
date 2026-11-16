@@ -134,6 +134,8 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
                 window.subtitle = folderBusy ? "Comparing…" : ""
             }
         }
+        // Blocks and Fluid are text layouts; images have their own modes in the bottom bar.
+        layoutGroup?.isEnabled = !diffVC.showsImage
     }
 
     // MARK: Preferences
@@ -159,6 +161,22 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
         diffVC.applyPreferences()
     }
 
+    // Text size and image zoom share ⌘+, ⌘- and ⌘0. This controller sits before the app delegate
+    // in the responder chain, so it takes the image case and passes the rest on to preferences.
+    @objc func biggerText(_ sender: Any?) {
+        if diffVC.showsImage { diffVC.imageView.zoomIn(sender) } else { Preferences.shared.fontSize += 1 }
+    }
+
+    @objc func smallerText(_ sender: Any?) {
+        if diffVC.showsImage { diffVC.imageView.zoomOut(sender) } else { Preferences.shared.fontSize -= 1 }
+    }
+
+    @objc func actualSizeText(_ sender: Any?) {
+        if diffVC.showsImage { diffVC.imageView.zoomToActualSize(sender) } else { Preferences.shared.fontSize = Preferences.defaultFontSize }
+    }
+
+    @objc func zoomImageToFit(_ sender: Any?) { diffVC.imageView.zoomToFit(sender) }
+
     @objc func reload(_ sender: Any?) {
         switch kind {
         case .files: diffVC.reload()
@@ -182,6 +200,8 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
             return (diffVC.canvas.currentChange ?? -1) < diffVC.canvas.changeCount - 1
         case #selector(previousChange(_:)):
             return (diffVC.canvas.currentChange ?? 0) > 0
+        case #selector(zoomImageToFit(_:)):
+            return diffVC.showsImage
         case #selector(nextFile(_:)), #selector(previousFile(_:)):
             return kind == .folders
         case #selector(toggleExpandAll(_:)):
@@ -221,6 +241,8 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
         group.label = "Layout"
         group.toolTip = "Layout"
         group.selectedIndex = Preferences.shared.layout == .blocks ? 0 : 1
+        group.autovalidates = false
+        group.isEnabled = !diffVC.showsImage
         layoutGroup = group
         return group
     }

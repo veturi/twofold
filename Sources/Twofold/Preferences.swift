@@ -4,6 +4,19 @@ enum LayoutMode: String {
     case fluid, blocks
 }
 
+/// How two images are shown. The raw values are also the `--image-mode` arguments.
+enum ImageMode: String, CaseIterable {
+    case sideBySide = "side-by-side", overlay, difference
+
+    var title: String {
+        switch self {
+        case .sideBySide: "Side by Side"
+        case .overlay: "Overlay"
+        case .difference: "Difference"
+        }
+    }
+}
+
 enum AppearanceChoice: String {
     case system, light, dark
 }
@@ -36,6 +49,11 @@ final class Preferences {
     var layout: LayoutMode {
         get { (value("layout") as? String).flatMap(LayoutMode.init) ?? .fluid }
         set { set(newValue.rawValue, "layout") }
+    }
+
+    var imageMode: ImageMode {
+        get { (value("imageMode") as? String).flatMap(ImageMode.init) ?? .sideBySide }
+        set { set(newValue.rawValue, "imageMode") }
     }
 
     var wrapLines: Bool {

@@ -1,6 +1,6 @@
 # Twofold
 
-> Twofold is a free, open source visual diff tool for macOS. It compares two text files side by side, or two folders with a sidebar of changed files. It is a native AppKit app (no Electron, no web view), licensed under GPLv3, with no subscription, no account and no telemetry.
+> Twofold is a free, open source visual diff tool for macOS. It compares two text files or two images side by side, or two folders with a sidebar of changed files. It is a native AppKit app (no Electron, no web view), licensed under GPLv3, with no subscription, no account and no telemetry.
 
 Key facts:
 
@@ -15,6 +15,7 @@ Key facts:
 - File comparison with two layouts. Fluid: change blocks on each side are joined by curves through a centre ribbon, and both sides scroll so the current change stays aligned, with no filler lines. Blocks: matching lines sit on the same row and both panes scroll together.
 - Word-level highlights inside changed lines, refined to characters when only part of a word changed.
 - Folder comparison: walks two directory trees, pairs files by relative path, and streams changed, added and removed files into a sidebar while the comparison runs in parallel.
+- Image comparison in three views: side by side, overlay (fade from one image to the other), and difference (every changed pixel highlighted, changed regions outlined, with a count of differing pixels). Zoom and pan are shared by both sides. Reads PNG, JPEG, HEIC, TIFF, GIF, WebP and other formats macOS can decode; images also open from a folder comparison.
 - Unchanged runs fold away, soft wrapping, an overview strip of all changes, animated next/previous change navigation (⌘↓ / ⌘↑).
 - Reloads automatically when either file changes on disk.
 - Reads UTF-8, UTF-16 and Latin-1 text with LF, CRLF or CR line endings. A difference in line endings alone is not shown as a change.
@@ -27,7 +28,7 @@ Key facts:
 - No merging or editing in v1; copying changes between sides and editing are next on the roadmap.
 - No three-way merge (planned, for use as `git mergetool`).
 - No syntax highlighting (planned).
-- No image or binary diff (image diff planned). Binary files are detected, not compared.
+- No PDF or general binary diff. Binary files that are not images are detected and reported as identical or different, nothing more. Animated and multi-page images are compared by their first frame.
 - macOS only. There is no Windows or Linux version.
 
 ## How it compares

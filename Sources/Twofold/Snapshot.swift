@@ -3,6 +3,8 @@ import AppKit
 /// Renders a comparison window offscreen to a PNG and exits. Used to verify the UI without a screen.
 ///
 ///     Twofold --snapshot out.png [--appearance dark] [--layout blocks] [--size 1360x860] [--change 3] A B
+///
+/// For two images, `--image-mode side-by-side|overlay|difference` and `--zoom 2` pick the view.
 @MainActor
 enum Snapshot {
     static func run(_ o: LaunchOptions) {
@@ -17,6 +19,7 @@ enum Snapshot {
         }
         let p = Preferences.shared
         if let l = o.layout { p.overrides["layout"] = l.rawValue }
+        if let m = o.imageMode { p.overrides["imageMode"] = m.rawValue }
         if let w = o.wrap { p.overrides["wrapLines"] = w }
         if let f = o.fontSize { p.overrides["fontSize"] = Double(f) }
         p.overrides["showInvisibles"] = p.showInvisibles
@@ -48,6 +51,7 @@ enum Snapshot {
             print(String(format: "ready after %.0f ms", Date().timeIntervalSince(started) * 1000 - 250))
             if o.bench { benchmark(wc.diffVC.canvas) }
             if let c = o.change { wc.diffVC.canvas.goToChange(c, animated: false) }
+            if let z = o.zoom { wc.diffVC.imageView.setZoom(z) }
             capture(window, to: out, scale: o.scale)
             exit(0)
         }

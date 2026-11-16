@@ -6,6 +6,8 @@ struct LaunchOptions {
     var snapshot: String?
     var appearance: AppearanceChoice?
     var layout: LayoutMode?
+    var imageMode: ImageMode?
+    var zoom: CGFloat?
     var wrap: Bool?
     var size = CGSize(width: 1360, height: 860)
     var change: Int?
@@ -27,6 +29,8 @@ struct LaunchOptions {
             case "--snapshot": o.snapshot = next()
             case "--appearance": o.appearance = next().flatMap(AppearanceChoice.init)
             case "--layout": o.layout = next().flatMap(LayoutMode.init)
+            case "--image-mode": o.imageMode = next().flatMap(ImageMode.init)
+            case "--zoom": o.zoom = next().flatMap { Double($0) }.map { CGFloat($0) }
             case "--wrap": o.wrap = true
             case "--no-wrap": o.wrap = false
             case "--bench": o.bench = true
@@ -170,6 +174,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @objc func newComparison(_ sender: Any?) { showWelcome(prefill: nil) }
     @objc func setLayoutBlocks(_ sender: Any?) { Preferences.shared.layout = .blocks }
     @objc func setLayoutFluid(_ sender: Any?) { Preferences.shared.layout = .fluid }
+    /// Sent by the View menu (the item's tag) and by the bottom bar's segmented control.
+    @objc func setImageMode(_ sender: Any?) {
+        let index = (sender as? NSSegmentedControl)?.selectedSegment ?? (sender as? NSMenuItem)?.tag ?? 0
+        guard ImageMode.allCases.indices.contains(index) else { return }
+        Preferences.shared.imageMode = ImageMode.allCases[index]
+    }
+
     @objc func toggleWrap(_ sender: Any?) { Preferences.shared.wrapLines.toggle() }
     @objc func toggleInvisibles(_ sender: Any?) { Preferences.shared.showInvisibles.toggle() }
     @objc func biggerText(_ sender: Any?) { Preferences.shared.fontSize += 1 }
@@ -186,6 +197,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         switch item.action {
         case #selector(setLayoutBlocks(_:)): item.state = p.layout == .blocks ? .on : .off
         case #selector(setLayoutFluid(_:)): item.state = p.layout == .fluid ? .on : .off
+        case #selector(setImageMode(_:)):
+            item.state = ImageMode.allCases.firstIndex(of: p.imageMode) == item.tag ? .on : .off
         case #selector(toggleWrap(_:)): item.state = p.wrapLines ? .on : .off
         case #selector(toggleInvisibles(_:)): item.state = p.showInvisibles ? .on : .off
         case #selector(setAppearance(_:)):
@@ -247,6 +260,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             item("Blocks", #selector(setLayoutBlocks(_:)), "1"),
             item("Fluid", #selector(setLayoutFluid(_:)), "2"),
             .separator(),
+            item("Images Side by Side", #selector(setImageMode(_:)), "3", tag: 0),
+            item("Image Overlay", #selector(setImageMode(_:)), "4", tag: 1),
+            item("Image Difference", #selector(setImageMode(_:)), "5", tag: 2),
+            .separator(),
             item("Wrap Lines", #selector(toggleWrap(_:)), "l", [.command, .option]),
             item("Show Invisibles", #selector(toggleInvisibles(_:)), "i", [.command, .option]),
             item("Expand Unchanged Lines", #selector(ComparisonWindowController.toggleExpandAll(_:)), "e", [.command, .option]),
@@ -254,6 +271,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             item("Bigger", #selector(biggerText(_:)), "+"),
             item("Smaller", #selector(smallerText(_:)), "-"),
             item("Actual Size", #selector(actualSizeText(_:)), "0"),
+            item("Zoom Image to Fit", #selector(ComparisonWindowController.zoomImageToFit(_:)), "9"),
             .separator(),
             appearanceItem,
             .separator(),

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Twofold: free, open source diff tool for Mac (files &amp; folders)</title>
-  <meta name="description" content="Twofold is a native macOS app for comparing text files and folders side by side. Beautiful, fast, open source and free: a Kaleidoscope alternative with no subscription, no account and no telemetry.">
+  <meta name="description" content="Twofold is a native macOS app for comparing text files, images and folders side by side. Beautiful, fast, open source and free: a Kaleidoscope alternative with no subscription, no account and no telemetry.">
   <link rel="canonical" href="https://twofoldapp.org/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Twofold">
@@ -28,7 +28,7 @@
         "@type": "SoftwareApplication",
         "@id": "https://twofoldapp.org/#app",
         "name": "Twofold",
-        "description": "A native, open source visual diff tool for macOS that compares two text files side by side, or two folders with a sidebar of changed files.",
+        "description": "A native, open source visual diff tool for macOS that compares two text files or two images side by side, or two folders with a sidebar of changed files.",
         "url": "https://twofoldapp.org/",
         "applicationCategory": "DeveloperApplication",
         "applicationSubCategory": "File comparison",
@@ -42,12 +42,14 @@
         "screenshot": [
           "https://twofoldapp.org/assets/hero-light.png",
           "https://twofoldapp.org/assets/hero-dark.png",
-          "https://twofoldapp.org/assets/folders.png"
+          "https://twofoldapp.org/assets/folders.png",
+          "https://twofoldapp.org/assets/images.png"
         ],
         "featureList": [
           "Side-by-side file comparison with Fluid and Blocks layouts",
           "Word- and character-level highlights inside changed lines",
           "Folder comparison with a sidebar of changed, added and removed files",
+          "Image comparison with side-by-side, overlay and pixel difference views",
           "Works as git difftool, including whole-tree comparisons",
           "Automatic reload when files change on disk",
           "Light and dark themes"
@@ -79,12 +81,14 @@
             "acceptedAnswer": { "@type": "Answer", "text": "Twofold needs macOS 26 or later and runs natively on both Apple silicon and Intel Macs." } },
           { "@type": "Question", "name": "Can Twofold compare folders?",
             "acceptedAnswer": { "@type": "Answer", "text": "Yes. Open two folders and Twofold lists every changed, added and removed file in a sidebar grouped by directory, streaming results while the comparison runs in parallel. Select a file to see its diff." } },
+          { "@type": "Question", "name": "Can Twofold compare images?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Open two images, or select one in a folder comparison, and Twofold shows them side by side, as an overlay you can fade from one version to the other, or as a difference view that highlights every changed pixel and outlines each changed region. It reads PNG, JPEG, HEIC, TIFF, GIF, WebP and the other formats macOS can decode." } },
           { "@type": "Question", "name": "How do I use Twofold as my git difftool?",
             "acceptedAnswer": { "@type": "Answer", "text": "Install the twofold command with make install, then run: git config --global diff.tool twofold; git config --global difftool.twofold.cmd 'twofold --wait \"$LOCAL\" \"$REMOTE\"'; git config --global difftool.prompt false. Use git difftool --dir-diff to compare whole trees in one window." } },
           { "@type": "Question", "name": "Can Twofold merge or edit files?",
             "acceptedAnswer": { "@type": "Answer", "text": "Not yet. Version 1 is a viewer for files and folders. Copying changes between sides and editing in place are next on the roadmap, followed by three-way merge for git mergetool." } },
           { "@type": "Question", "name": "Is Twofold a good Kaleidoscope alternative?",
-            "acceptedAnswer": { "@type": "Answer", "text": "If you mainly read diffs of text files and folders, yes: Twofold is native, polished and free, while Kaleidoscope is sold as a subscription. Kaleidoscope still does more, including merging, image diff and three-way merge." } },
+            "acceptedAnswer": { "@type": "Answer", "text": "If you mainly read diffs of text files, images and folders, yes: Twofold is native, polished and free, while Kaleidoscope is sold as a subscription. Kaleidoscope still does more, including merging and three-way merge." } },
           { "@type": "Question", "name": "Does Twofold collect any data?",
             "acceptedAnswer": { "@type": "Answer", "text": "No. The app has no telemetry, no account and no license server. It never sends your files anywhere." } },
           { "@type": "Question", "name": "Why does macOS warn me when I first open Twofold?",
@@ -273,9 +277,14 @@
           <img src="assets/blocks-dark.png" width="2560" height="1600" loading="lazy" alt="Blocks layout in the dark theme" class="w-full rounded-xl">
           <figcaption class="px-2 pb-1 pt-3 text-sm text-zinc-500">Blocks layout, dark theme.</figcaption>
         </figure>
+        <figure class="overflow-hidden rounded-2xl border border-black/5 bg-white p-3 lg:col-span-2 dark:border-white/5 dark:bg-white/5">
+          <img src="assets/images.png" width="2560" height="1600" loading="lazy" alt="Image comparison in the Difference view, with changed pixels highlighted and changed regions outlined" class="w-full rounded-xl">
+          <figcaption class="px-2 pb-1 pt-3 text-sm text-zinc-500">Image comparison: side by side, overlay, or a difference view that marks every changed pixel.</figcaption>
+        </figure>
       </div>
 
       <ul class="mx-auto mt-16 grid max-w-4xl gap-x-10 gap-y-3 text-zinc-600 sm:grid-cols-2 dark:text-zinc-400">
+        <li class="flex gap-3"><span class="text-brand">✓</span> Image diff: side by side, overlay and pixel difference</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Unchanged runs fold away; click to expand</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Soft wrapping and visible line endings</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Overview strip with every change at a glance</li>
@@ -443,6 +452,10 @@
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-add"></span>
             <div><h3 class="font-semibold">Version 1: shipped</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">File and folder comparison, Fluid and Blocks layouts, light and dark themes, git difftool.</p></div>
           </div>
+          <div class="flex gap-4 rounded-2xl border border-add/30 bg-add/5 p-6">
+            <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-add"></span>
+            <div><h3 class="font-semibold">Image diff: shipped</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Side by side, overlay and pixel difference views.</p></div>
+          </div>
           <div class="flex gap-4 rounded-2xl border border-brand/30 bg-brand/5 p-6">
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-brand"></span>
             <div><h3 class="font-semibold">Merge &amp; edit</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Copy changes between sides, edit in place, save.</p></div>
@@ -454,10 +467,6 @@
           <div class="flex gap-4 rounded-2xl border border-black/5 p-6 dark:border-white/10">
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full border-2 border-brand"></span>
             <div><h3 class="font-semibold">Syntax highlighting</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Language-aware colours on top of the change colours.</p></div>
-          </div>
-          <div class="flex gap-4 rounded-2xl border border-black/5 p-6 dark:border-white/10">
-            <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full border-2 border-brand"></span>
-            <div><h3 class="font-semibold">Image diff</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Side by side, overlay and pixel difference views.</p></div>
           </div>
           <div class="flex gap-4 rounded-2xl border border-black/5 p-6 dark:border-white/10">
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full border-2 border-brand"></span>
@@ -532,6 +541,10 @@ git config --global difftool.prompt false</code></pre>
             <p class="mt-3 text-zinc-600 dark:text-zinc-400">Yes. Open two folders and Twofold lists every changed, added and removed file in a sidebar grouped by directory, streaming results while the comparison runs in parallel. Select a file to see its diff.</p>
           </details>
           <details class="group py-5">
+            <summary class="cursor-pointer list-none text-lg font-semibold">Can Twofold compare images?</summary>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">Yes. Open two images, or select one in a folder comparison, and Twofold shows them side by side, as an overlay you can fade from one version to the other, or as a difference view that highlights every changed pixel and outlines each changed region. It reads PNG, JPEG, HEIC, TIFF, GIF, WebP and the other formats macOS can decode.</p>
+          </details>
+          <details class="group py-5">
             <summary class="cursor-pointer list-none text-lg font-semibold">How do I use Twofold as my git difftool?</summary>
             <p class="mt-3 text-zinc-600 dark:text-zinc-400">Install the <code class="font-mono text-sm">twofold</code> command with <code class="font-mono text-sm">make install</code>, then run the three <code class="font-mono text-sm">git config</code> lines in <a href="#install" class="text-brand hover:underline">Get it</a>. Use <code class="font-mono text-sm">git difftool --dir-diff</code> to compare whole trees in one window.</p>
           </details>
@@ -541,7 +554,7 @@ git config --global difftool.prompt false</code></pre>
           </details>
           <details class="group py-5">
             <summary class="cursor-pointer list-none text-lg font-semibold">Is Twofold a good Kaleidoscope alternative?</summary>
-            <p class="mt-3 text-zinc-600 dark:text-zinc-400">If you mainly read diffs of text files and folders, yes: Twofold is native, polished and free, while Kaleidoscope is sold as a subscription. Kaleidoscope still does more, including merging, image diff and three-way merge. <a href="/kaleidoscope-alternative/" class="text-brand hover:underline">The full comparison</a>.</p>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">If you mainly read diffs of text files, images and folders, yes: Twofold is native, polished and free, while Kaleidoscope is sold as a subscription. Kaleidoscope still does more, including merging and three-way merge. <a href="/kaleidoscope-alternative/" class="text-brand hover:underline">The full comparison</a>.</p>
           </details>
           <details class="group py-5">
             <summary class="cursor-pointer list-none text-lg font-semibold">Does Twofold collect any data?</summary>

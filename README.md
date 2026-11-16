@@ -4,13 +4,14 @@ A native, fast, good-looking visual diff tool for macOS. Free and open source, n
 
 **[twofoldapp.org](https://twofoldapp.org)** · [Download](https://github.com/veturi/twofold/releases/latest)
 
-It compares two text files side by side, or two folders with a sidebar of changed files.
+It compares two text files or two images side by side, or two folders with a sidebar of changed files.
 
 - **Fluid layout.** Change blocks on each side are joined by curves through a centre ribbon, and the two sides scroll so the change at the centre of the window stays aligned. No filler lines.
 - **Blocks layout.** Both sides are padded so matching lines sit on the same row.
 - Word-level highlights inside modified lines, refined to characters where only part of a word changed.
 - Unchanged runs fold into "N Unchanged Lines"; click to expand.
 - Soft wrapping, line-end marks in changed lines, an overview strip of every change, and animated next/previous change navigation.
+- **Image diff.** Two images open side by side, as an overlay you can fade from one to the other, or as a difference view that highlights every changed pixel and outlines the changed regions. Zoom and pan apply to both sides at once.
 - Light and dark themes, following the system or set manually.
 - Folder comparison runs in parallel and streams results while it works.
 - Files reload automatically when they change on disk.
@@ -63,28 +64,33 @@ Then `git difftool` compares files one by one, and `git difftool -d` compares wh
 | ⌥⌘L | Wrap lines |
 | ⌥⌘I | Show invisibles |
 | ⌥⌘E | Expand all unchanged lines |
-| ⌘+ / ⌘- / ⌘0 | Text size |
+| ⌘3 / ⌘4 / ⌘5 | Images: side by side / overlay / difference |
+| ⌘+ / ⌘- / ⌘0 | Text size, or image zoom (⌘0 is actual size) |
+| ⌘9 | Zoom image to fit |
 | ⇧⌘S | Swap sides |
 | ⌘R | Reload |
 | ⌘O | New comparison |
 
 You can also drop two files or two folders on the Dock icon or on any window.
 
+Images are whatever macOS can decode (PNG, JPEG, HEIC, TIFF, GIF, WebP and more); the first frame is used for animated and multi-page files. They are compared pixel by pixel from their top-left corners, so two images of different sizes differ wherever only one of them has visible pixels. Scroll or drag to pan, pinch to zoom, and double-click to switch between fit and actual size.
+
 ## Development
 
 ```sh
-make test      # unit tests: diff engine, property tests, cross-check against diff(1), folders
+make test      # unit tests: diff engine, property tests, cross-check against diff(1), folders, image diff
 make bench     # diff benchmark (100,000 lines, 1% changed)
 make release   # universal arm64 + x86_64 bundle
 make icon      # regenerate Resources/AppIcon.icns
 ```
 
-`DiffCore` holds the diff engine and folder comparison with no AppKit dependency. `Twofold` is the AppKit app. The diff view draws with Core Text into a single custom view and caches typeset rows.
+`DiffCore` holds the text and image diff engines and folder comparison with no AppKit dependency. `Twofold` is the AppKit app. The diff view draws with Core Text into a single custom view and caches typeset rows.
 
 The app can render a window offscreen to a PNG, which is how the UI is checked without a screen:
 
 ```sh
-build/Twofold.app/Contents/MacOS/Twofold --snapshot out.png [--appearance dark] [--layout blocks] [--size 1360x860] [--change 3] [--scale 2] [--bench] A B
+build/Twofold.app/Contents/MacOS/Twofold --snapshot out.png [--appearance dark] [--layout blocks] [--size 1360x860] [--change 3] [--scale 2] [--bench] \
+  [--image-mode side-by-side|overlay|difference] [--zoom 2] A B
 ```
 
 `--bench` also prints frame render times while scrolling.

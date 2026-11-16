@@ -210,6 +210,94 @@ final class DiffTests: XCTestCase {
     }
 }
 
+final class ImageDiffTests: XCTestCase {
+    /// A solid image with some pixels replaced.
+    private func image(_ w: Int, _ h: Int, fill: [UInt8] = [10, 20, 30, 255], _ edits: [(Int, Int, [UInt8])] = []) -> PixelBuffer {
+        var px = [UInt8]()
+        px.reserveCapacity(w * h * 4)
+        for _ in 0..<(w * h) { px.append(contentsOf: fill) }
+        for (x, y, c) in edits { px.replaceSubrange((y * w + x) * 4..<(y * w + x) * 4 + 4, with: c) }
+        return PixelBuffer(width: w, height: h, rgba: px)
+    }
+
+    func testIdenticalImages() {
+        let d = ImageDiff(left: image(40, 30), right: image(40, 30))
+        XCTAssertTrue(d.isIdentical)
+        XCTAssertEqual(d.regions, [])
+        XCTAssertEqual(d.mask.count, 40 * 30)
+        XCTAssertFalse(d.mask.contains { $0 != 0 })
+    }
+
+    func testCountsPixelsAndRecordsStrength() {
+        let d = ImageDiff(left: image(40, 30), right: image(40, 30, [(5, 7, [10, 60, 30, 255]), (6, 7, [11, 20, 30, 255])]))
+        XCTAssertEqual(d.differingPixels, 2)
+        XCTAssertEqual(d.mask[7 * 40 + 5], 40)
+        XCTAssertEqual(d.mask[7 * 40 + 6], 1)
+        XCTAssertEqual(d.regions, [PixelRect(x: 5, y: 7, width: 2, height: 1)])
+        XCTAssertEqual(d.fraction, 2.0 / 1200.0, accuracy: 1e-12)
+    }
+
+    func testDistantChangesAreSeparateRegions() {
+        let edits: [(Int, Int, [UInt8])] = [(2, 2, [0, 0, 0, 255]), (3, 3, [0, 0, 0, 255]), (190, 90, [0, 0, 0, 255])]
+        let d = ImageDiff(left: image(200, 100), right: image(200, 100, edits))
+        XCTAssertEqual(d.regions, [PixelRect(x: 2, y: 2, width: 2, height: 2), PixelRect(x: 190, y: 90, width: 1, height: 1)])
+    }
+
+    func testNeighbouringCellsJoinIntoOneRegion() {
+        // Either side of a cell boundary, and diagonally across one.
+        let c = ImageDiff.cellSize
+        let edits: [(Int, Int, [UInt8])] = [(c - 1, 4, [0, 0, 0, 255]), (c, 4, [0, 0, 0, 255]), (c + 3, c + 2, [0, 0, 0, 255])]
+        let d = ImageDiff(left: image(64, 64), right: image(64, 64, edits))
+        XCTAssertEqual(d.regions, [PixelRect(x: c - 1, y: 4, width: 5, height: c - 1)])
+    }
+
+    func testToleranceIgnoresSmallDifferences() {
+        let l = image(8, 8), r = image(8, 8, [(1, 1, [12, 20, 30, 255]), (2, 2, [10, 20, 40, 255])])
+        XCTAssertEqual(ImageDiff(left: l, right: r).differingPixels, 2)
+        XCTAssertEqual(ImageDiff(left: l, right: r, tolerance: 2).differingPixels, 1)
+        XCTAssertTrue(ImageDiff(left: l, right: r, tolerance: 10).isIdentical)
+    }
+
+    func testDifferentSizesCompareAgainstTransparent() {
+        let d = ImageDiff(left: image(10, 10), right: image(14, 12))
+        XCTAssertEqual(d.width, 14)
+        XCTAssertEqual(d.height, 12)
+        XCTAssertEqual(d.differingPixels, 14 * 12 - 10 * 10)
+        XCTAssertEqual(d.mask[0], 0)
+        XCTAssertEqual(d.mask[11 * 14 + 13], 255)
+        XCTAssertEqual(d.regions, [PixelRect(x: 0, y: 0, width: 14, height: 12)])
+
+        // Extra area that is fully transparent is not a difference.
+        let clear = image(14, 12, fill: [0, 0, 0, 0], (0..<100).map { ($0 % 10, $0 / 10, [10, 20, 30, 255]) })
+        XCTAssertTrue(ImageDiff(left: image(10, 10), right: clear).isIdentical)
+    }
+
+    func testMissingSide() {
+        let d = ImageDiff(left: nil, right: image(6, 4))
+        XCTAssertEqual(d.differingPixels, 24)
+        XCTAssertEqual(ImageDiff(left: image(6, 4), right: nil).differingPixels, 24)
+        let empty = ImageDiff(left: nil, right: nil)
+        XCTAssertTrue(empty.isIdentical)
+        XCTAssertEqual(empty.totalPixels, 0)
+        XCTAssertEqual(empty.fraction, 0)
+    }
+
+    func testRespectsRowPadding() {
+        // Rows padded to 20 bytes; the padding differs but must be ignored.
+        func padded(_ pad: UInt8, _ last: UInt8) -> PixelBuffer {
+            var bytes = [UInt8]()
+            for y in 0..<3 {
+                for x in 0..<4 { bytes.append(contentsOf: [1, 2, 3, (x == 3 && y == 2) ? last : 255]) }
+                bytes.append(contentsOf: [pad, pad, pad, pad])
+            }
+            return PixelBuffer(width: 4, height: 3, bytesPerRow: 20, data: Data(bytes))
+        }
+        XCTAssertTrue(ImageDiff(left: padded(0, 255), right: padded(9, 255)).isIdentical)
+        let d = ImageDiff(left: padded(0, 255), right: padded(9, 250))
+        XCTAssertEqual(d.regions, [PixelRect(x: 3, y: 2, width: 1, height: 1)])
+    }
+}
+
 final class FolderTests: XCTestCase {
     func testFolderComparison() async throws {
         let fm = FileManager.default
