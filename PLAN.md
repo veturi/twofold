@@ -19,7 +19,7 @@ Status: version 1 implemented. See README.md for usage. One addition beyond this
 - Editing, merging, three-way merge, copying changes between sides.
 - Image diff, PDF diff, binary diff beyond "these files differ".
 - Syntax highlighting (the renderer is designed to take coloured runs).
-- Git integration beyond being a difftool (no changeset browsing, no history).
+- Git integration beyond being a difftool (no changeset browsing, no history). Since then, section 11.5 added a view of the working copy's uncommitted changes; history is still out.
 - Preferences window, auto-update, notarised distribution, App Store.
 
 ## 2. Decisions
@@ -224,6 +224,7 @@ Sections 1 to 10 describe version 1 as it was planned and built. This section is
 | – | Merge stage 2: edit in place | Shipped |
 | – | Three-way merge, usable as `git mergetool` | Shipped |
 | – | Unified layout, ignore whitespace, find | Shipped |
+| – | Live working copy changes | Shipped |
 | 1 | Mac App Store build | Next |
 
 Proportional fonts for prose (section 10) stay unscheduled.
@@ -287,6 +288,17 @@ Shipped. As built:
 - **Find.** ⌘F opens a bar above the panes that searches both files as you type: not case sensitive, plain text, no replace. Every match is highlighted and ticked in the overview strip; ⌘G and ⇧⌘G step through them in reading order and wrap around, a match inside folded lines opens the fold, and the current match becomes the selection. The search stops counting at 20,000 matches. In a merge window find searches the result, with the text view's own find bar.
 - **Not built:** regular expressions, case-sensitive and whole-word search, replace, a separate search of the two top panes of a merge, and finer whitespace options (ignore all whitespace, or only line ends).
 
-### 11.5 Open point: sandbox
+### 11.5 Live working copy changes
 
-Section 2 turns the sandbox off, which is right for the GitHub build. The Mac App Store build must be sandboxed, and a sandboxed app cannot write to (or, strictly, read) arbitrary paths passed on the command line without the user granting access. The sandboxed build also cannot run `git` or write `~/.gitconfig`, so its Git Integration window will have to show the commands to copy instead of switches. This does not block stage 1, but saving should go through one place so that security-scoped access can be added there for the App Store build.
+Shipped. One folder inside a Git repository (`twofold .`, File › Open Repository…, or a drop) opens a window on everything not yet committed. As built:
+
+- **What is compared.** The last commit (HEAD) on the left, the working copy on the right. The index is not a third side: a staged change and an unstaged one both show as differences from HEAD, and the sidebar marks the file as staged or partly staged. Untracked files are listed as added.
+- **Same window as a folder comparison.** The sidebar, filter, layouts, find and editing are the ones folder comparisons have. The committed version of the selected file is written to a temporary folder for the left side, which is read-only; the right side is the real file and can be edited and saved.
+- **Live.** The repository folder is watched with FSEvents, `.git` included, so edits, staging, commits, checkouts and reverts all lead to a new `git status` shortly after. The selected file stays selected while it is still changed; when it is not, the first file is selected, and when nothing is left the window says so. A file with unsaved edits here is never switched away from. Git is run with `GIT_OPTIONAL_LOCKS=0` so that reading the status does not rewrite the index and wake the watcher again.
+- **Pause.** A toolbar button freezes both the list and the open file; resuming catches up.
+- **Stepping.** Next Change past the last change of a file opens the next file, and Previous Change before the first opens the previous file at its last change. Folder comparisons got this too.
+- **Not built:** notifications while the app is in the background, file history, staging, committing or discarding from the window, comparing against the index or another commit, detecting a working copy behind `git difftool --dir-diff`, changes inside submodules, and remembering repositories in the start window's recent list.
+
+### 11.6 Open point: sandbox
+
+Section 2 turns the sandbox off, which is right for the GitHub build. The Mac App Store build must be sandboxed, and a sandboxed app cannot write to (or, strictly, read) arbitrary paths passed on the command line without the user granting access. The sandboxed build also cannot run `git` or write `~/.gitconfig`, so its Git Integration window will have to show the commands to copy instead of switches, and the working copy window (11.5), which depends on running `git status`, needs another way to read a repository or has to be left out of that build. This does not block stage 1, but saving should go through one place so that security-scoped access can be added there for the App Store build.

@@ -45,7 +45,8 @@
           "https://twofoldapp.org/assets/folders.png",
           "https://twofoldapp.org/assets/images.jpg",
           "https://twofoldapp.org/assets/merge.png",
-          "https://twofoldapp.org/assets/unified.png"
+          "https://twofoldapp.org/assets/unified.png",
+          "https://twofoldapp.org/assets/changes.png"
         ],
         "featureList": [
           "Side-by-side file comparison with Fluid and Blocks layouts, and a single-column Unified layout",
@@ -56,6 +57,7 @@
           "Copy changes from one side to the other, with undo and save",
           "Edit in place: type, paste and delete in either pane",
           "Three-way merge for resolving git conflicts, usable as git mergetool",
+          "Live working copy changes: every uncommitted change in a Git repository, updated as files change",
           "Folder comparison with a sidebar of changed, added and removed files",
           "Image comparison with side-by-side, overlay and pixel difference views",
           "Works as git difftool, including whole-tree comparisons, and as git mergetool",
@@ -99,6 +101,8 @@
             "acceptedAnswer": { "@type": "Answer", "text": "Yes. You can type, paste and delete in either pane, copy any change from one side to the other, undo, and save; the rest of the file is written back exactly as it was. Twofold also does three-way merges and works as git mergetool for resolving conflicts." } },
           { "@type": "Question", "name": "How do I use Twofold as my git mergetool?",
             "acceptedAnswer": { "@type": "Answer", "text": "Open Twofold, choose Twofold › Git Integration… and turn on Merge tool. Twofold writes the settings to your global Git configuration for you. To set it up by hand instead, install the twofold command with make install, then run: git config --global merge.tool twofold; git config --global mergetool.twofold.cmd 'twofold --wait --base \"$BASE\" --output \"$MERGED\" \"$LOCAL\" \"$REMOTE\"'; git config --global mergetool.twofold.trustExitCode false. After a conflict, git mergetool opens each conflicted file with your version and theirs side by side and the result below. Changes only one side made are already merged; pick a side for each conflict or edit the result, then save and close the window." } },
+          { "@type": "Question", "name": "Can Twofold show my uncommitted Git changes?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Run twofold . in a repository, or choose File › Open Repository…, and Twofold lists every file that differs from the last commit, untracked files included, and compares the committed version with your working copy. The window updates by itself as files are edited, staged, committed or reverted, so you can leave it open while you or a coding agent work. You can pause the updates to study one state." } },
           { "@type": "Question", "name": "Is Twofold a good Kaleidoscope alternative?",
             "acceptedAnswer": { "@type": "Answer", "text": "Yes, for most people. Twofold is native, polished and free, while Kaleidoscope is sold as a subscription. Twofold compares text, images and folders, edits files, and resolves git conflicts with a three-way merge. Kaleidoscope's merge tools are older and more complete." } },
           { "@type": "Question", "name": "Does Twofold collect any data?",
@@ -301,6 +305,10 @@
           <img src="assets/unified.png" width="2560" height="1600" loading="lazy" alt="Unified layout: both files in one column, removed lines in red and added lines in green, with the find bar open and every match highlighted" class="w-full rounded-xl">
           <figcaption class="px-2 pb-1 pt-3 text-sm text-zinc-500">Unified layout: both files in one column, old lines in red and new ones in green. Find highlights every match in both files.</figcaption>
         </figure>
+        <figure class="overflow-hidden rounded-2xl border border-black/5 bg-white p-3 lg:col-span-2 dark:border-white/5 dark:bg-white/5">
+          <img src="assets/changes.png" width="2560" height="1600" loading="lazy" alt="Working copy changes: a sidebar of every file changed since the last commit, with staged and untracked marks, and the committed version beside the working copy" class="w-full rounded-xl">
+          <figcaption class="px-2 pb-1 pt-3 text-sm text-zinc-500">Working copy changes: everything you have not committed, against the last commit. The list and the diff update as files change.</figcaption>
+        </figure>
       </div>
 
       <ul class="mx-auto mt-16 grid max-w-4xl gap-x-10 gap-y-3 text-zinc-600 sm:grid-cols-2 dark:text-zinc-400">
@@ -309,6 +317,7 @@
         <li class="flex gap-3"><span class="text-brand">✓</span> Copy changes across, undo, and save</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Edit in place: type, paste and delete in either pane</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Three-way merge for git conflicts</li>
+        <li class="flex gap-3"><span class="text-brand">✓</span> Live view of a repository's uncommitted changes</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Unified layout: both files in one column</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Find in both files with ⌘F</li>
         <li class="flex gap-3"><span class="text-brand">✓</span> Ignore whitespace when indentation is all that changed</li>
@@ -504,6 +513,10 @@
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-add"></span>
             <div><h3 class="font-semibold">Unified layout, ignore whitespace, find: shipped</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Both files in one column, a switch that sets indentation changes aside, and ⌘F across both files.</p></div>
           </div>
+          <div class="flex gap-4 rounded-2xl border border-add/30 bg-add/5 p-6">
+            <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-add"></span>
+            <div><h3 class="font-semibold">Live working copy changes: shipped</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Everything you have not committed yet, in one window that keeps up while you work.</p></div>
+          </div>
           <div class="flex gap-4 rounded-2xl border border-brand/30 bg-brand/5 p-6">
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-brand"></span>
             <div><h3 class="font-semibold">Mac App Store: next</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">4,99 € once, for one-click install and automatic updates. The GitHub version stays free, and there will never be a subscription.</p></div>
@@ -604,6 +617,10 @@ git config --global mergetool.twofold.trustExitCode false</code></pre>
           <details class="group py-5">
             <summary class="cursor-pointer list-none text-lg font-semibold">How do I use Twofold as my git mergetool?</summary>
             <p class="mt-3 text-zinc-600 dark:text-zinc-400">Open Twofold, choose Twofold › Git Integration… and turn on Merge tool. Twofold writes the settings to your global Git configuration for you. To set it up by hand instead, install the <code class="font-mono text-sm">twofold</code> command with <code class="font-mono text-sm">make install</code>, then run the three <code class="font-mono text-sm">git config</code> lines for the mergetool in <a href="#install" class="text-brand hover:underline">Get it</a>. After a conflict, <code class="font-mono text-sm">git mergetool</code> opens each conflicted file with your version and theirs side by side and the result below. Changes only one side made are already merged; pick a side for each conflict or edit the result, then save and close the window.</p>
+          </details>
+          <details class="group py-5">
+            <summary class="cursor-pointer list-none text-lg font-semibold">Can Twofold show my uncommitted Git changes?</summary>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">Yes. Run twofold . in a repository, or choose File › Open Repository…, and Twofold lists every file that differs from the last commit, untracked files included, and compares the committed version with your working copy. The window updates by itself as files are edited, staged, committed or reverted, so you can leave it open while you or a coding agent work. You can pause the updates to study one state.</p>
           </details>
           <details class="group py-5">
             <summary class="cursor-pointer list-none text-lg font-semibold">Is Twofold a good Kaleidoscope alternative?</summary>

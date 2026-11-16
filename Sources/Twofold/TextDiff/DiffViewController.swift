@@ -41,6 +41,21 @@ final class DiffViewController: NSViewController {
     private var typingSide: Int?
     /// What the re-diff in flight changed, for the canvas to carry folds and the selection across.
     private var pendingEdit: LineEdit?
+    /// Sides that are shown but never written, such as a file's committed version.
+    var lockedSides: Set<Side> = [] {
+        didSet {
+            canvas.lockedSides = lockedSides
+            updateChangeLabel()
+        }
+    }
+    /// While true, changes on disk are not taken in. They are when it turns false again.
+    var isPaused = false {
+        didSet { if oldValue && !isPaused { filesChanged() } }
+    }
+    /// The next text that loads starts at its last change instead of its first: for stepping back from the file after it.
+    var startAtLastChange = false
+    /// Whether the window has a file after or before this one that stepping through changes can move on to.
+    var hasNeighbourFile: ((Int) -> Bool)?
     /// Called when a side becomes edited or clean.
     var onEditStateChange: (() -> Void)?
     var onSave: (() -> Void)?
@@ -277,6 +292,7 @@ final class DiffViewController: NSViewController {
             docs = [diff.left, diff.right]
             canvas.setDiff(diff, columns: columns, syntax: syntax, edit: pendingEdit, preserveScroll: keepScroll)
             pendingEdit = nil
+            if startAtLastChange, canvas.changeCount > 0 { canvas.goToChange(canvas.changeCount - 1, animated: false) }
             summary = Self.summary(diff.stats)
             bottomBar.statusLabel.stringValue = Self.status(diff)
         case .image(let comparison):
@@ -301,6 +317,7 @@ final class DiffViewController: NSViewController {
             summary = "Could not open file"
             bottomBar.statusLabel.stringValue = ""
         }
+        startAtLastChange = false
         updateChangeLabel()
         updateFindBar()
         onSummaryChange?()
@@ -375,10 +392,11 @@ final class DiffViewController: NSViewController {
     /// True when an edit can be applied right now, which excludes the moment a re-diff is running.
     var canMerge: Bool { canEdit && !isLoading }
     var canCopyChange: Bool { canMerge && canvas.currentChange != nil }
+    func canCopyChange(to side: Side) -> Bool { canCopyChange && !lockedSides.contains(side) }
 
     /// Replaces the current change on `target` with the lines of the other side.
     func copyChange(to target: Side) {
-        guard canMerge, let diff = canvas.diff, let c = canvas.currentChange, c < diff.changeBlocks.count else { return }
+        guard canCopyChange(to: target), let diff = canvas.diff, let c = canvas.currentChange, c < diff.changeBlocks.count else { return }
         let block = diff.blocks[diff.changeBlocks[c]]
         let t = target.rawValue, s = 1 - t
         let from = s == 0 ? block.left : block.right, to = t == 0 ? block.left : block.right
@@ -388,7 +406,7 @@ final class DiffViewController: NSViewController {
 
     /// Typed or pasted text from the canvas. Returns where the caret belongs afterwards.
     private func replaceText(_ side: Side, _ a: TextPos, _ b: TextPos, _ text: String, coalesce: Bool) -> TextPos? {
-        guard canMerge else { return nil }
+        guard canMerge, !lockedSides.contains(side) else { return nil }
         let result = docs[side.rawValue].replacingText(from: (a.line, a.offset), to: (b.line, b.offset), with: text)
         setDocument(result.document, side: side.rawValue, actionName: "Typing", coalesce: coalesce)
         return TextPos(line: result.end.line, offset: result.end.offset)
@@ -545,6 +563,7 @@ final class DiffViewController: NSViewController {
 
     /// A compared file changed on disk. Our own saves are recognised by their timestamp and ignored.
     private func filesChanged() {
+        guard !isPaused else { return }
         let current = [urls.0.flatMap(FileStamp.init), urls.1.flatMap(FileStamp.init)]
         guard current != stamps else { return }
         guard hasUnsavedChanges else {
@@ -631,8 +650,8 @@ final class DiffViewController: NSViewController {
 
     private func updateChangeLabel() {
         canvas.mergeEnabled = canEdit
-        bottomBar.copyLeftButton.isEnabled = canCopyChange
-        bottomBar.copyRightButton.isEnabled = canCopyChange
+        bottomBar.copyLeftButton.isEnabled = canCopyChange(to: .left)
+        bottomBar.copyRightButton.isEnabled = canCopyChange(to: .right)
         if let c = imageView.comparison, showsImage {
             let n = c.diff.regions.count
             bottomBar.changeLabel.stringValue = n == 0 ? "No differences" : "\(n.formatted()) Region\(n == 1 ? "" : "s")"
@@ -647,8 +666,8 @@ final class DiffViewController: NSViewController {
         } else {
             bottomBar.changeLabel.stringValue = "\(n) Changes"
         }
-        bottomBar.previousButton.isEnabled = n > 0 && (canvas.currentChange ?? 0) > 0
-        bottomBar.nextButton.isEnabled = n > 0 && (canvas.currentChange ?? -1) < n - 1
+        bottomBar.previousButton.isEnabled = n > 0 && (canvas.currentChange ?? 0) > 0 || hasNeighbourFile?(-1) == true
+        bottomBar.nextButton.isEnabled = n > 0 && (canvas.currentChange ?? -1) < n - 1 || hasNeighbourFile?(1) == true
         bottomBar.setToggle(bottomBar.expandButton, on: canvas.expandAll)
     }
 }

@@ -16,7 +16,9 @@ enum Snapshot {
             runGitSetup(setup, o, to: out)
             return
         }
-        if o.paths.count < 2 {
+        // One folder inside a Git working copy: that working copy's changes.
+        let repository = o.paths.count == 1 ? WorkingCopy.locate(URL(fileURLWithPath: o.paths[0])) : nil
+        if o.paths.count < 2 && repository == nil {
             let welcome = WelcomeWindowController(prefill: o.paths.first.map { URL(fileURLWithPath: $0) })
             if o.appearance == .dark { welcome.window?.appearance = NSAppearance(named: .darkAqua) }
             welcome.window?.layoutIfNeeded()
@@ -32,13 +34,18 @@ enum Snapshot {
         if let f = o.fontSize { p.overrides["fontSize"] = Double(f) }
         p.overrides["showInvisibles"] = p.showInvisibles
 
-        let a = URL(fileURLWithPath: o.paths[0]), b = URL(fileURLWithPath: o.paths[1])
-        if let output = o.output {
-            runMerge(o, local: a, remote: b, output: URL(fileURLWithPath: output), to: out)
-            return
+        let wc: ComparisonWindowController
+        if let repository {
+            wc = ComparisonWindowController(left: repository.root, right: repository.root, kind: .changes, workingCopy: repository)
+        } else {
+            let a = URL(fileURLWithPath: o.paths[0]), b = URL(fileURLWithPath: o.paths[1])
+            if let output = o.output {
+                runMerge(o, local: a, remote: b, output: URL(fileURLWithPath: output), to: out)
+                return
+            }
+            let isDir = (try? a.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+            wc = ComparisonWindowController(left: a, right: b, kind: isDir ? .folders : .files)
         }
-        let isDir = (try? a.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
-        let wc = ComparisonWindowController(left: a, right: b, kind: isDir ? .folders : .files)
         wc.initialSelection = o.file
         guard let window = wc.window else { exit(1) }
         switch o.appearance {
@@ -61,6 +68,27 @@ enum Snapshot {
             }
             window.layoutIfNeeded()
             print(String(format: "ready after %.0f ms", Date().timeIntervalSince(started) * 1000 - 250))
+            if o.pause { wc.togglePause(nil) }
+            for _ in 0..<o.nextChange {
+                wc.nextChange(nil)
+                try? await Task.sleep(for: .milliseconds(100))
+                while wc.isBusy { try? await Task.sleep(for: .milliseconds(50)) }
+            }
+            if let command = o.then {
+                let shell = Process()
+                shell.executableURL = URL(fileURLWithPath: "/bin/sh")
+                shell.arguments = ["-c", command]
+                try? shell.run()
+                shell.waitUntilExit()
+                // Long enough for the file system to report the change, then until the window has taken it in.
+                try? await Task.sleep(for: .milliseconds(1500))
+                while wc.isBusy { try? await Task.sleep(for: .milliseconds(50)) }
+                try? await Task.sleep(for: .milliseconds(300))
+                window.layoutIfNeeded()
+            }
+            if let sidebar = wc.sidebar {
+                print("files: \(sidebar.entries.count)  selected: \(sidebar.selectedPath ?? "none")  summary: \(wc.diffVC.summary)")
+            }
             if o.bench { benchmark(wc.diffVC.canvas) }
             if let c = o.change { wc.diffVC.canvas.goToChange(c, animated: false) }
             if let z = o.zoom { wc.diffVC.imageView.setZoom(z) }
@@ -98,6 +126,7 @@ enum Snapshot {
                 window.layoutIfNeeded()
             }
             capture(window, to: out, scale: o.scale)
+            wc.cleanUp()
             exit(0)
         }
     }

@@ -64,6 +64,10 @@ final class DiffCanvasView: NSView {
     var mergeEnabled = false {
         didSet { if oldValue != mergeEnabled { needsDisplay = true } }
     }
+    /// Sides that cannot be changed: no typing there and no copying to them.
+    var lockedSides: Set<Side> = [] {
+        didSet { if oldValue != lockedSides { needsDisplay = true } }
+    }
     /// Called with the side to copy the current change to.
     var onCopy: ((Side) -> Void)?
     /// In a three-way merge: what the result takes for each change. The ribbon then shows a pair of
@@ -831,6 +835,7 @@ final class DiffCanvasView: NSView {
         guard let rects = copyButtonRects(), let c = currentChange else { return }
         let colors = pal.colors(diff.blocks[m.sections[m.changeSections[c]].block].kind)
         for (rect, direction) in [(rects.left, CGFloat(-1)), (rects.right, CGFloat(1))] {
+            if lockedSides.contains(direction < 0 ? .left : .right) { continue }
             ctx.setFillColor(pal.ribbonBackground)
             ctx.fillEllipse(in: rect.insetBy(dx: -2, dy: -2))
             ctx.setFillColor(colors.gutterCurrent)
@@ -983,8 +988,8 @@ final class DiffCanvasView: NSView {
             return
         }
         if let buttons = copyButtonRects() {
-            if buttons.left.contains(p) { onCopy?(.left); return }
-            if buttons.right.contains(p) { onCopy?(.right); return }
+            if buttons.left.contains(p), !lockedSides.contains(.left) { onCopy?(.left); return }
+            if buttons.right.contains(p), !lockedSides.contains(.right) { onCopy?(.right); return }
         }
         for (change, left, right) in visibleTakeButtons() {
             guard left.contains(p) || right.contains(p) else { continue }
@@ -1413,7 +1418,7 @@ extension DiffCanvasView {
     /// Replaces a range on one side through the owner, which answers with the position after the new text.
     @discardableResult
     private func edit(_ side: Side, _ a: TextPos, _ b: TextPos, _ text: String, coalesce: Bool) -> TextPos? {
-        guard mergeEnabled, let end = onEdit?(side, a, b, text, coalesce && typingRun) else { return nil }
+        guard mergeEnabled, !lockedSides.contains(side), let end = onEdit?(side, a, b, text, coalesce && typingRun) else { return nil }
         pendingSelection = (side, end, end)
         typingRun = coalesce
         caretGoalX = nil

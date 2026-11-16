@@ -31,7 +31,21 @@ final class FolderSidebarController: NSViewController, NSTableViewDataSource, NS
         }
     }
 
+    /// A small symbol after a file's name, such as "staged".
+    struct Mark {
+        var symbol: String
+        var tip: String
+    }
+
     private(set) var entries: [FolderEntry] = []
+    private var marks: [String: Mark] = [:]
+    /// False where both sides can never be identical, as in a list of changes.
+    var showsIdentical = true {
+        didSet {
+            filterButtons[.identical]?.isHidden = !showsIdentical
+            updateHeader()
+        }
+    }
     private var rows: [Row] = []
     private var filters: Set<Filter> = [.modified, .added, .removed]
     private var finished = false
@@ -116,6 +130,7 @@ final class FolderSidebarController: NSViewController, NSTableViewDataSource, NS
             footer.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -10),
         ])
         view = root
+        filterButtons[.identical]?.isHidden = !showsIdentical
         updateFilterButtons()
     }
 
@@ -131,6 +146,16 @@ final class FolderSidebarController: NSViewController, NSTableViewDataSource, NS
 
     func setEntries(_ e: [FolderEntry]) {
         entries = e
+        rebuildRows()
+        updateHeader()
+    }
+
+    /// Replaces the list while it is on screen. The selected file stays selected if it is still listed;
+    /// otherwise the first file is selected, unless `keepSelection` says the old one is still wanted.
+    func update(_ e: [FolderEntry], marks: [String: Mark], keepSelection: Bool) {
+        entries = e
+        self.marks = marks
+        if !keepSelection, let path = selectedPath, !e.contains(where: { $0.path == path }) { selectedPath = nil }
         rebuildRows()
         updateHeader()
     }
@@ -170,7 +195,8 @@ final class FolderSidebarController: NSViewController, NSTableViewDataSource, NS
         let identical = count(.identical), pending = count(.pending)
         let changed = modified + added + removed
         titleLabel.stringValue = "\(changed) Changed File\(changed == 1 ? "" : "s")"
-        var parts = ["✎ \(modified)", "+ \(added)", "− \(removed)", "= \(identical)"]
+        var parts = ["✎ \(modified)", "+ \(added)", "− \(removed)"]
+        if showsIdentical { parts.append("= \(identical)") }
         if !finished || pending > 0 { parts.append("comparing…") }
         countsLabel.stringValue = parts.joined(separator: "   ")
     }
@@ -224,6 +250,13 @@ final class FolderSidebarController: NSViewController, NSTableViewDataSource, NS
         rebuildRows()
     }
 
+    /// Whether there is a file after (1) or before (-1) the selected one.
+    func hasNeighbour(_ delta: Int) -> Bool {
+        let fileRows = rows.indices.filter { if case .file = rows[$0] { true } else { false } }
+        guard let current = fileRows.firstIndex(of: table.selectedRow) else { return !fileRows.isEmpty }
+        return fileRows.indices.contains(current + delta)
+    }
+
     func selectNext(_ delta: Int) {
         let fileRows = rows.indices.filter { if case .file = rows[$0] { true } else { false } }
         guard !fileRows.isEmpty else { return }
@@ -272,19 +305,28 @@ final class FolderSidebarController: NSViewController, NSTableViewDataSource, NS
             return label
         case .file(let i):
             let id = NSUserInterfaceItemIdentifier("file")
-            let cell = (tableView.makeView(withIdentifier: id, owner: nil) as? NSTableCellView) ?? makeFileCell(id)
+            let cell = (tableView.makeView(withIdentifier: id, owner: nil) as? FileCell) ?? makeFileCell(id)
             cell.imageView?.image = Icons.statusTile(entries[i].status)
             cell.textField?.stringValue = entries[i].name
-            cell.toolTip = entries[i].path
+            let mark = marks[entries[i].path]
+            cell.mark.image = mark.flatMap { NSImage(systemSymbolName: $0.symbol, accessibilityDescription: $0.tip) }
+            cell.mark.isHidden = mark == nil
+            cell.toolTip = mark.map { "\(entries[i].path) (\($0.tip))" } ?? entries[i].path
             return cell
         }
     }
 
-    private func makeFileCell(_ id: NSUserInterfaceItemIdentifier) -> NSTableCellView {
-        let cell = NSTableCellView()
+    private func makeFileCell(_ id: NSUserInterfaceItemIdentifier) -> FileCell {
+        let cell = FileCell()
         cell.identifier = id
         let image = NSImageView()
         let text = NSTextField(labelWithString: "")
+        let mark = cell.mark
+        mark.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 11, weight: .medium)
+        mark.contentTintColor = Theme.secondaryText
+        mark.translatesAutoresizingMaskIntoConstraints = false
+        cell.addSubview(mark)
+        text.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         text.font = .systemFont(ofSize: 13)
         text.lineBreakMode = .byTruncatingMiddle
         text.textColor = .labelColor
@@ -300,8 +342,10 @@ final class FolderSidebarController: NSViewController, NSTableViewDataSource, NS
             image.widthAnchor.constraint(equalToConstant: 18),
             image.heightAnchor.constraint(equalToConstant: 18),
             text.leadingAnchor.constraint(equalTo: image.trailingAnchor, constant: 9),
-            text.trailingAnchor.constraint(lessThanOrEqualTo: cell.trailingAnchor, constant: -16),
+            text.trailingAnchor.constraint(lessThanOrEqualTo: mark.leadingAnchor, constant: -6),
             text.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+            mark.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -18),
+            mark.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
         ])
         return cell
     }
@@ -313,6 +357,16 @@ final class FolderSidebarController: NSViewController, NSTableViewDataSource, NS
         guard entries[i].path != selectedPath else { return }
         selectedPath = entries[i].path
         onSelect?(entries[i])
+    }
+}
+
+/// A file row: status tile, name, and an optional mark at the trailing edge.
+final class FileCell: NSTableCellView {
+    let mark = NSImageView()
+
+    /// The mark turns white with the name on a selected row.
+    override var backgroundStyle: NSView.BackgroundStyle {
+        didSet { mark.contentTintColor = backgroundStyle == .emphasized ? .white : Theme.secondaryText }
     }
 }
 

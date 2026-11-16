@@ -29,6 +29,11 @@ struct LaunchOptions {
     /// Snapshot runs only: search for this text, then step to the next match this many times.
     var find: String?
     var findNext = 0
+    /// Snapshot runs only: a shell command to run once the window is ready, to see the window follow the change.
+    var then: String?
+    /// Snapshot runs only: pause a working copy window's updates before `then` runs, and step to the next change this many times.
+    var pause = false
+    var nextChange = 0
     var size = CGSize(width: 1360, height: 860)
     var change: Int?
     var fontSize: CGFloat?
@@ -61,6 +66,9 @@ struct LaunchOptions {
             case "--git-setup": o.gitSetup = next()
             case "--ignore-whitespace": o.ignoreWhitespace = true
             case "--find": o.find = next()
+            case "--then": o.then = next()
+            case "--pause": o.pause = true
+            case "--next-change": o.nextChange = next().flatMap { Int($0) } ?? 0
             case "--find-next": o.findNext = next().flatMap { Int($0) } ?? 0
             case "--save": o.save = true
             case "--undo": o.undo = true
@@ -122,7 +130,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         } else if options.paths.count >= 2 {
             openComparison(URL(fileURLWithPath: options.paths[0]), URL(fileURLWithPath: options.paths[1]))
         } else if !openedFromEvent {
-            showWelcome(prefill: options.paths.first.map { URL(fileURLWithPath: $0) })
+            // A single folder inside a Git working copy opens that working copy's changes.
+            let single = options.paths.first.map { URL(fileURLWithPath: $0) }
+            if single.map(openChanges) != true { showWelcome(prefill: single) }
         }
         NSApp.activate()
     }
@@ -134,9 +144,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         openedFromEvent = true
         if urls.count >= 2 {
             openComparison(urls[0], urls[1])
-        } else if let u = urls.first {
+        } else if let u = urls.first, !openChanges(u) {
             showWelcome(prefill: u)
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        comparisons.forEach { $0.cleanUp() }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
@@ -185,6 +199,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         let wc = ComparisonWindowController(left: a, right: b, kind: isDirA.boolValue ? .folders : .files)
         RecentComparisons.add(left: a, right: b, isFolder: isDirA.boolValue)
+        present(wc, replacing: old)
+    }
+
+    /// Opens the changes of the Git working copy that contains `url`, if it is a folder in one.
+    /// Returns false when it is not, without saying anything.
+    @discardableResult
+    func openChanges(_ url: URL) -> Bool {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue,
+              let workingCopy = WorkingCopy.locate(url) else { return false }
+        if let open = comparisons.first(where: { $0.workingCopy?.root == workingCopy.root }) {
+            open.showWindow(nil)
+        } else {
+            present(ComparisonWindowController(left: workingCopy.root, right: workingCopy.root, kind: .changes, workingCopy: workingCopy), replacing: nil)
+        }
+        welcome?.close()
+        welcome = nil
+        return true
+    }
+
+    private func present(_ wc: ComparisonWindowController, replacing old: ComparisonWindowController?) {
         wc.onClose = { [weak self] c in self?.comparisons.removeAll { $0 === c } }
         wc.onDrop = { [weak self, weak wc] urls in
             guard urls.count >= 2 else { return }
@@ -239,6 +274,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let w = WelcomeWindowController(prefill: prefill)
         w.onCompare = { [weak self] a, b in self?.openComparison(a, b) }
         w.onGitSetup = { [weak self] in self?.showGitSetup(nil) }
+        w.onOpenRepository = { [weak self] in self?.openRepository(nil) }
         welcome = w
         w.showWindow(nil)
     }
@@ -269,6 +305,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     // MARK: Actions
 
     @objc func newComparison(_ sender: Any?) { showWelcome(prefill: nil) }
+
+    @objc func openRepository(_ sender: Any?) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose a folder in a Git repository to see what has changed since the last commit."
+        panel.prompt = "Open"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        if !openChanges(url) {
+            alert("“\(url.lastPathComponent)” is not in a Git repository", "Twofold shows the working copy changes of folders that Git tracks.")
+        }
+    }
 
     @objc func showGitSetup(_ sender: Any?) {
         if gitSetup == nil {
@@ -357,10 +406,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         _ = submenu("File", [
             item("New Comparison…", #selector(newComparison(_:)), "n"),
             item("Open…", #selector(newComparison(_:)), "o"),
+            item("Open Repository…", #selector(openRepository(_:)), "o", [.command, .shift]),
             .separator(),
             item("Close", #selector(NSWindow.performClose(_:)), "w"),
             item("Save", #selector(ComparisonWindowController.saveChanges(_:)), "s"),
             item("Reload", #selector(ComparisonWindowController.reload(_:)), "r"),
+            item("Pause Updates", #selector(ComparisonWindowController.togglePause(_:)), "p", [.command, .option]),
             item("Swap Sides", #selector(ComparisonWindowController.swapSides(_:)), "s", [.command, .shift]),
         ])
         _ = submenu("Edit", [

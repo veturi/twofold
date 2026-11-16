@@ -3,7 +3,7 @@ import Foundation
 /// Reads and writes the global Git settings that make Twofold the diff tool or the merge tool.
 ///
 /// Git is pointed at the launcher script inside this app bundle by its full path, so nothing has to
-/// be installed on the `PATH`. This is the only place that runs `git`.
+/// be installed on the `PATH`. `run` is the one place that starts `git`; `WorkingCopy` uses it too.
 struct GitIntegration: Sendable {
     enum Tool: Sendable, CaseIterable {
         case diff, merge
@@ -60,7 +60,7 @@ struct GitIntegration: Sendable {
 
     /// `/usr/bin/git` is a stub that asks to install developer tools when there are none, so it is only
     /// used when `xcode-select` reports a developer directory.
-    private static func findGit() -> URL? {
+    static func findGit() -> URL? {
         let fm = FileManager.default
         if fm.isExecutableFile(atPath: "/usr/bin/git"),
            (try? run(URL(fileURLWithPath: "/usr/bin/xcode-select"), ["-p"]))?.status == 0 {
@@ -158,14 +158,18 @@ struct GitIntegration: Sendable {
 
     struct Output: Sendable {
         var status: Int32
-        var output: String
+        var data: Data
         var error: String
+        var output: String { String(decoding: data, as: UTF8.self) }
     }
 
-    private static func run(_ tool: URL, _ arguments: [String]) throws -> Output {
+    static func run(_ tool: URL, _ arguments: [String], in directory: URL? = nil) throws -> Output {
         let process = Process()
         process.executableURL = tool
         process.arguments = arguments
+        process.currentDirectoryURL = directory
+        // Reading a repository must not rewrite its index: that would wake whoever watches it, us included.
+        process.environment = ProcessInfo.processInfo.environment.merging(["GIT_OPTIONAL_LOCKS": "0"]) { _, new in new }
         let out = Pipe(), err = Pipe()
         process.standardOutput = out
         process.standardError = err
@@ -175,7 +179,6 @@ struct GitIntegration: Sendable {
         let output = out.fileHandleForReading.readDataToEndOfFile()
         let error = err.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        return Output(status: process.terminationStatus, output: String(decoding: output, as: UTF8.self),
-                      error: String(decoding: error, as: UTF8.self))
+        return Output(status: process.terminationStatus, data: output, error: String(decoding: error, as: UTF8.self))
     }
 }

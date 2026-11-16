@@ -17,6 +17,7 @@ It compares two text files or two images side by side, or two folders with a sid
 - **Edit in place.** Click in either pane and type, paste, cut or delete. The diff updates as you go.
 - **Copy changes across.** Copy any change to the other side with the arrows on it or ⌥⌘→ / ⌥⌘←, undo with ⌘Z, save with ⌘S. Saving rewrites only the lines you changed: the encoding, each line's line ending and whether the file ends with a newline stay as they were.
 - **Three-way merge.** As `git mergetool`, Twofold shows your version and theirs side by side with the result below. Changes only one side made are merged already; each conflict is marked until you take a side, take both, or edit the result yourself.
+- **Working copy changes.** Open a folder in a Git repository and Twofold lists every file that differs from the last commit and compares the committed version with your working copy. The window follows edits, staging, commits and reverts as they happen.
 - **Syntax highlighting** on top of the change colours, for Swift, C, C++, Objective-C, Java, Kotlin, C#, Scala, Dart, JavaScript, TypeScript, Python, Ruby, Go, Rust, PHP, shell, SQL, Lua, HTML, XML, CSS, JSON, YAML, TOML, INI, Markdown, Makefile and Dockerfile. The language comes from the file name or a `#!` line.
 - **Image diff.** Two images open side by side, as an overlay you can fade from one to the other, or as a difference view that highlights every changed pixel, more strongly the more it changed, and outlines the changed regions. Zoom and pan apply to both sides at once.
 - Light and dark themes, following the system or set manually.
@@ -50,6 +51,22 @@ This copies `Twofold.app` to `~/Applications` and the `twofold` command to `~/.l
 twofold a.swift b.swift
 twofold --wait a.swift b.swift   # block until the window closes
 ```
+
+### Working copy changes
+
+```sh
+twofold .
+```
+
+With one folder that is inside a Git repository, Twofold opens that repository's working copy changes: every file that differs from the last commit (HEAD), untracked files included. **File › Open Repository…** (⇧⌘O) and dropping the folder on the app do the same.
+
+- A is the committed version and is read-only. B is the file in your working copy; you can edit and save it, or copy a change from A to take it back.
+- The window is live. Edits, new files, `git add`, commits, checkouts and reverts show up within a moment, whoever makes them: you, your editor, a terminal or a coding agent. Open it before you start and it fills in as you go.
+- Marks in the sidebar: ✓ staged, half circle partly staged, ? untracked, ⚠ unmerged.
+- **Pause Updates** (⌥⌘P, or the pause button in the toolbar) freezes the window on one state. Resuming catches up.
+- ⌘↓ and ⌘↑ step through the changes of one file and then move on to the next file.
+
+Twofold only reads the repository: it does not stage, commit or discard, and it shows no history. Changes inside submodules are left out.
 
 ### With git
 
@@ -89,7 +106,7 @@ The same command works outside git: `twofold --base base.txt --output merged.txt
 
 | Keys | Action |
 |---|---|
-| ⌘↓ / ⌘↑ | Next / previous change |
+| ⌘↓ / ⌘↑ | Next / previous change, moving on to the next / previous file in a folder or repository window |
 | ⌥⌘↓ / ⌥⌘↑ | Next / previous file (folders) |
 | ⌥⌘→ / ⌥⌘← | Copy the current change to the right / left |
 | ⌥⌘1 / ⌥⌘2 / ⌥⌘3 | Merge: use A / B / both for the current change |
@@ -111,6 +128,8 @@ The same command works outside git: `twofold --base base.txt --output merged.txt
 | ⇧⌘S | Swap sides |
 | ⌘R | Reload |
 | ⌘O | New comparison |
+| ⇧⌘O | Open a Git repository's working copy changes |
+| ⌥⌘P | Pause / resume updates (repository window) |
 
 You can also drop two files or two folders on the Dock icon or on any window.
 

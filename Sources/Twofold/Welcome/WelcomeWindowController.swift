@@ -11,6 +11,7 @@ final class WelcomeWindowController: NSWindowController {
     private let recentSection = NSStackView()
     var onCompare: ((URL, URL) -> Void)?
     var onGitSetup: (() -> Void)?
+    var onOpenRepository: (() -> Void)?
 
     init(prefill: URL?) {
         let window = NSWindow(
@@ -72,10 +73,15 @@ final class WelcomeWindowController: NSWindowController {
         stack.setCustomSpacing(28, after: footer)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        let git = NSButton(title: "Use Twofold from Git…", target: self, action: #selector(gitSetup))
-        git.isBordered = false
-        git.font = .systemFont(ofSize: 12)
-        git.contentTintColor = Theme.accent
+        let repository = NSButton(title: "Open a Git Repository…", target: self, action: #selector(openRepository))
+        let setup = NSButton(title: "Use Twofold from Git…", target: self, action: #selector(gitSetup))
+        for button in [repository, setup] {
+            button.isBordered = false
+            button.font = .systemFont(ofSize: 12)
+            button.contentTintColor = Theme.accent
+        }
+        let git = NSStackView(views: [repository, setup])
+        git.spacing = 28
         git.translatesAutoresizingMaskIntoConstraints = false
 
         let root = DropView()
@@ -124,6 +130,7 @@ final class WelcomeWindowController: NSWindowController {
     }
 
     @objc private func gitSetup() { onGitSetup?() }
+    @objc private func openRepository() { onOpenRepository?() }
 
     @objc private func clearRecents() {
         RecentComparisons.clear()

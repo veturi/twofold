@@ -3,12 +3,14 @@ import DiffCore
 
 extension NSToolbarItem.Identifier {
     static let layoutMode = NSToolbarItem.Identifier("layoutMode")
+    static let pauseUpdates = NSToolbarItem.Identifier("pauseUpdates")
 }
 
-/// One window per comparison: either two files, or two folders with a sidebar.
+/// One window per comparison: two files, two folders with a sidebar, or a Git working copy against
+/// its last commit, which has the same sidebar and keeps itself up to date.
 @MainActor
 final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NSToolbarDelegate, NSMenuItemValidation {
-    enum Kind { case files, folders }
+    enum Kind { case files, folders, changes }
 
     private(set) var left: URL
     private(set) var right: URL
@@ -21,15 +23,33 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
     private var selectedEntry: FolderEntry?
     var initialSelection: String?
 
+    // A working copy's changes (`kind == .changes`).
+    let workingCopy: WorkingCopy?
+    private var changes: [String: GitChange] = [:]
+    /// The change the diff view was last loaded for, to tell when it needs loading again.
+    private var shownChange: GitChange?
+    private var branch: String?
+    private var repoWatcher: FolderWatcher?
+    /// Where committed versions of files are written for the left side.
+    private var headFolder: URL?
+    private var refreshing = false
+    private var refreshWanted = false
+    private var pendingShows = 0
+    private var showGeneration = 0
+    private var showsNoChanges = false
+    private(set) var isPaused = false
+    private var pauseItem: NSToolbarItem?
+
     var onClose: ((ComparisonWindowController) -> Void)?
     var onDrop: (([URL]) -> Void)?
 
-    var isBusy: Bool { folderBusy || diffVC.isLoading }
+    var isBusy: Bool { folderBusy || refreshing || pendingShows > 0 || diffVC.isLoading }
 
-    init(left: URL, right: URL, kind: Kind) {
+    init(left: URL, right: URL, kind: Kind, workingCopy: WorkingCopy? = nil) {
         self.left = left
         self.right = right
         self.kind = kind
+        self.workingCopy = workingCopy
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1360, height: 860),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
@@ -56,8 +76,16 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
         switch kind {
         case .files:
             window.contentViewController = diffVC
-        case .folders:
+        case .folders, .changes:
             let sidebar = FolderSidebarController()
+            if kind == .changes {
+                sidebar.showsIdentical = false
+                // The committed version is only shown; edits go to the working copy.
+                diffVC.lockedSides = [.left]
+                diffVC.pathBar.titles = ("HEAD", "Working Copy")
+                diffVC.pathBar.swapButton.isHidden = true
+            }
+            diffVC.hasNeighbourFile = { [weak sidebar] delta in sidebar?.hasNeighbour(delta) ?? false }
             sidebar.onSelect = { [weak self] entry in self?.select(entry) }
             self.sidebar = sidebar
             let split = NSSplitViewController()
@@ -73,7 +101,7 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
         }
         window.setContentSize(NSSize(width: 1360, height: 860))
 
-        let toolbar = NSToolbar(identifier: kind == .folders ? "FolderToolbar" : "FileToolbar")
+        let toolbar = NSToolbar(identifier: kind == .folders ? "FolderToolbar" : (kind == .changes ? "ChangesToolbar" : "FileToolbar"))
         toolbar.delegate = self
         toolbar.displayMode = .iconOnly
         toolbar.allowsUserCustomization = false
@@ -89,7 +117,156 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
         switch kind {
         case .files: diffVC.load(left: left, right: right)
         case .folders: scanFolders(keeping: initialSelection)
+        case .changes: startChanges()
         }
+    }
+
+    // MARK: Working copy
+
+    private func startChanges() {
+        guard let workingCopy else { return }
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("Twofold-HEAD-\(UUID().uuidString)", isDirectory: true)
+        headFolder = folder
+        diffVC.pathBar.roots = (folder, workingCopy.root)
+        repoWatcher = FolderWatcher(folder: workingCopy.root) { [weak self] in self?.workingCopyChanged() }
+        folderBusy = true
+        sidebar?.reset(keeping: initialSelection)
+        refreshChanges()
+    }
+
+    /// Something below the repository changed: a file, the index, or what HEAD points at.
+    private func workingCopyChanged() {
+        if isPaused { refreshWanted = true } else { refreshChanges() }
+    }
+
+    private func refreshChanges() {
+        guard let workingCopy else { return }
+        // One status at a time; changes that arrive meanwhile are picked up by one more run afterwards.
+        if refreshing {
+            refreshWanted = true
+            return
+        }
+        refreshing = true
+        Task { [weak self] in
+            let result = await Self.readStatus(workingCopy)
+            guard let self, self.window != nil else { return }
+            self.refreshing = false
+            self.apply(result)
+            if self.refreshWanted && !self.isPaused {
+                self.refreshWanted = false
+                self.refreshChanges()
+            }
+        }
+    }
+
+    @concurrent
+    private static func readStatus(_ workingCopy: WorkingCopy) async -> Result<GitStatus, WorkingCopy.Failure> {
+        do {
+            return .success(try workingCopy.status())
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    @concurrent
+    private static func headFile(_ workingCopy: WorkingCopy, _ change: GitChange, _ folder: URL) async -> URL? {
+        workingCopy.headFile(for: change, in: folder)
+    }
+
+    private func apply(_ result: Result<GitStatus, WorkingCopy.Failure>) {
+        folderBusy = false
+        switch result {
+        case .failure(let failure):
+            if changes.isEmpty {
+                selectedEntry = nil
+                shownChange = nil
+                showsNoChanges = false
+                diffVC.clear(title: "Could not read the repository", subtitle: failure.message, symbol: "exclamationmark.triangle")
+            }
+        case .success(let status):
+            branch = status.branch
+            changes = Dictionary(status.changes.map { ($0.path, $0) }) { first, _ in first }
+            var marks: [String: FolderSidebarController.Mark] = [:]
+            let entries = status.changes.map { change -> FolderEntry in
+                switch (change.kind, change.staging) {
+                case (.untracked, _): marks[change.path] = .init(symbol: "questionmark.circle", tip: "Untracked")
+                case (.conflicted, _): marks[change.path] = .init(symbol: "exclamationmark.triangle.fill", tip: "Unmerged")
+                case (_, .full): marks[change.path] = .init(symbol: "checkmark.circle.fill", tip: "Staged")
+                case (_, .partial): marks[change.path] = .init(symbol: "circle.lefthalf.filled", tip: "Partly staged")
+                case (_, .none): break
+                }
+                let status: FolderEntry.Status
+                switch change.kind {
+                case .added, .untracked: status = .onlyRight
+                case .deleted: status = .onlyLeft
+                case .modified, .renamed, .conflicted: status = .different
+                }
+                return FolderEntry(path: change.path, status: status)
+            }
+            // A file being edited here stays open even if it has left the list.
+            sidebar?.update(entries, marks: marks, keepSelection: diffVC.hasUnsavedChanges)
+            sidebar?.finish()
+            // A file named before the list arrived is selected in the sidebar without being reported.
+            if selectedEntry == nil, let path = sidebar?.selectedPath, let entry = entries.first(where: { $0.path == path }) {
+                show(entry)
+            }
+            // The selected file is still listed, but what it is compared against has changed: a commit,
+            // a checkout, or the file itself appearing or disappearing.
+            if let entry = selectedEntry, let now = changes[entry.path], let shown = shownChange, !diffVC.hasUnsavedChanges,
+               (now.kind, now.headID, now.originalPath) != (shown.kind, shown.headID, shown.originalPath),
+               let fresh = entries.first(where: { $0.path == entry.path }) {
+                show(fresh, keepScroll: true)
+            }
+        }
+        updateTitle()
+    }
+
+    private func showChange(_ entry: FolderEntry?, keepScroll: Bool) {
+        guard let entry, let change = changes[entry.path], let workingCopy, let headFolder else {
+            shownChange = nil
+            showGeneration += 1
+            guard !showsNoChanges else { return }
+            showsNoChanges = true
+            diffVC.clear(title: "No changes", subtitle: "The working copy matches the last commit.", symbol: "checkmark.circle")
+            return
+        }
+        showsNoChanges = false
+        shownChange = change
+        showGeneration += 1
+        let generation = showGeneration
+        pendingShows += 1
+        Task { [weak self] in
+            let committed = await Self.headFile(workingCopy, change, headFolder)
+            guard let self else { return }
+            self.pendingShows -= 1
+            guard generation == self.showGeneration, self.window != nil else { return }
+            self.diffVC.load(left: committed, right: change.isInWorkingCopy ? workingCopy.root.appendingPathComponent(change.path) : nil,
+                             keepScroll: keepScroll)
+            self.updateTitle()
+        }
+    }
+
+    /// Stops watching the repository and removes the committed versions written for the left side.
+    /// Called when the window closes and when the app quits, which closes no windows.
+    func cleanUp() {
+        repoWatcher?.invalidate()
+        repoWatcher = nil
+        if let headFolder { try? FileManager.default.removeItem(at: headFolder) }
+        headFolder = nil
+    }
+
+    @objc func togglePause(_ sender: Any?) {
+        guard kind == .changes else { return }
+        isPaused.toggle()
+        diffVC.isPaused = isPaused
+        pauseItem?.image = NSImage(systemSymbolName: isPaused ? "play.fill" : "pause.fill", accessibilityDescription: nil)
+        pauseItem?.label = isPaused ? "Resume Updates" : "Pause Updates"
+        pauseItem?.toolTip = isPaused ? "Resume Updates" : "Pause Updates: keep showing this state while files change"
+        if !isPaused && refreshWanted {
+            refreshWanted = false
+            refreshChanges()
+        }
+        updateTitle()
     }
 
     // MARK: Folders
@@ -131,8 +308,13 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
         sidebar?.setStatus(same ? .identical : .different, forPath: entry.path)
     }
 
-    private func show(_ entry: FolderEntry?) {
+    private func show(_ entry: FolderEntry?, keepScroll: Bool = false) {
         selectedEntry = entry
+        if kind == .changes {
+            showChange(entry, keepScroll: keepScroll)
+            updateTitle()
+            return
+        }
         guard let entry else {
             diffVC.clear(title: "No differences", subtitle: "Every file in both folders is identical.", symbol: "checkmark.circle")
             updateTitle()
@@ -148,6 +330,15 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
         guard let window else { return }
         window.title = "\(left.lastPathComponent) | \(right.lastPathComponent)"
         switch kind {
+        case .changes:
+            window.title = "\(workingCopy?.name ?? left.lastPathComponent) — \(branch ?? "detached HEAD")"
+            let paused = isPaused ? "Updates paused" : ""
+            if let e = selectedEntry {
+                window.subtitle = ([paused.isEmpty ? nil : paused, e.name, diffVC.summary.isEmpty ? nil : diffVC.summary] as [String?])
+                    .compactMap { $0 }.joined(separator: " – ")
+            } else {
+                window.subtitle = folderBusy ? "Reading changes…" : (paused.isEmpty ? "Working copy changes" : paused)
+            }
         case .files:
             window.subtitle = diffVC.summary
         case .folders:
@@ -175,8 +366,25 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
 
     // MARK: Actions
 
-    @objc func nextChange(_ sender: Any?) { diffVC.canvas.nextChange() }
-    @objc func previousChange(_ sender: Any?) { diffVC.canvas.previousChange() }
+    // With a sidebar, stepping past the last change of a file moves on to the next file, and back likewise.
+    @objc func nextChange(_ sender: Any?) {
+        let canvas = diffVC.canvas
+        if (canvas.currentChange ?? -1) < canvas.changeCount - 1 || sidebar?.hasNeighbour(1) != true {
+            canvas.nextChange()
+        } else {
+            sidebar?.selectNext(1)
+        }
+    }
+
+    @objc func previousChange(_ sender: Any?) {
+        let canvas = diffVC.canvas
+        if (canvas.currentChange ?? 0) > 0 || sidebar?.hasNeighbour(-1) != true {
+            canvas.previousChange()
+        } else {
+            diffVC.startAtLastChange = true
+            sidebar?.selectNext(-1)
+        }
+    }
     @objc func nextFile(_ sender: Any?) { sidebar?.selectNext(1) }
     @objc func previousFile(_ sender: Any?) { sidebar?.selectNext(-1) }
 
@@ -211,17 +419,22 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
             switch kind {
             case .files: diffVC.reload()
             case .folders: scanFolders(keeping: sidebar?.selectedPath)
+            case .changes:
+                refreshChanges()
+                if selectedEntry != nil { diffVC.reload() }
             }
         }
     }
 
     @objc func swapSides(_ sender: Any?) {
+        guard kind != .changes else { return }
         diffVC.confirmUnsavedChanges { [self] in
             swap(&left, &right)
             updateTitle()
             switch kind {
             case .files: diffVC.load(left: left, right: right)
             case .folders: scanFolders(keeping: sidebar?.selectedPath)
+            case .changes: break
             }
         }
     }
@@ -237,11 +450,18 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
         case #selector(nextChange(_:)):
-            return (diffVC.canvas.currentChange ?? -1) < diffVC.canvas.changeCount - 1
+            return (diffVC.canvas.currentChange ?? -1) < diffVC.canvas.changeCount - 1 || sidebar?.hasNeighbour(1) == true
         case #selector(previousChange(_:)):
-            return (diffVC.canvas.currentChange ?? 0) > 0
-        case #selector(copyToRight(_:)), #selector(copyToLeft(_:)):
-            return diffVC.canCopyChange
+            return (diffVC.canvas.currentChange ?? 0) > 0 || sidebar?.hasNeighbour(-1) == true
+        case #selector(copyToRight(_:)):
+            return diffVC.canCopyChange(to: .right)
+        case #selector(copyToLeft(_:)):
+            return diffVC.canCopyChange(to: .left)
+        case #selector(swapSides(_:)):
+            return kind != .changes
+        case #selector(togglePause(_:)):
+            item.title = isPaused ? "Resume Updates" : "Pause Updates"
+            return kind == .changes
         case #selector(saveChanges(_:)):
             return diffVC.hasUnsavedChanges
         case #selector(undoEdit(_:)):
@@ -257,7 +477,7 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
         case #selector(useSelectionForFind(_:)):
             return diffVC.canFind && diffVC.canvas.selectedText != nil
         case #selector(nextFile(_:)), #selector(previousFile(_:)):
-            return kind == .folders
+            return sidebar != nil
         case #selector(toggleExpandAll(_:)):
             item.state = diffVC.canvas.expandAll ? .on : .off
             return true
@@ -278,6 +498,7 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
 
     func windowWillClose(_ notification: Notification) {
         folderTask?.cancel()
+        cleanUp()
         diffVC.stopWatching()
         NotificationCenter.default.removeObserver(self)
         onClose?(self)
@@ -286,9 +507,11 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
     // MARK: Toolbar
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        kind == .folders
-            ? [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .layoutMode]
-            : [.flexibleSpace, .layoutMode]
+        switch kind {
+        case .files: [.flexibleSpace, .layoutMode]
+        case .folders: [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .layoutMode]
+        case .changes: [.toggleSidebar, .sidebarTrackingSeparator, .pauseUpdates, .flexibleSpace, .layoutMode]
+        }
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -296,6 +519,17 @@ final class ComparisonWindowController: NSWindowController, NSWindowDelegate, NS
     }
 
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        if id == .pauseUpdates {
+            let item = NSToolbarItem(itemIdentifier: id)
+            item.image = NSImage(systemSymbolName: "pause.fill", accessibilityDescription: nil)
+            item.label = "Pause Updates"
+            item.toolTip = "Pause Updates: keep showing this state while files change"
+            item.isBordered = true
+            item.target = self
+            item.action = #selector(togglePause(_:))
+            pauseItem = item
+            return item
+        }
         guard id == .layoutMode else { return nil }
         let group = NSToolbarItemGroup(
             itemIdentifier: id, images: [Icons.blocksLayout, Icons.fluidLayout, Icons.unifiedLayout], selectionMode: .selectOne,

@@ -20,6 +20,10 @@ Key facts:
 - Three-way merge: given two versions of a file and their common base, Twofold shows the two versions side by side with an editable result below. Changes only one side made are merged automatically; where both sides changed the same lines differently, the conflict is highlighted and you take one side, both, or type the resolution. Unresolved conflicts stay in the result between git-style conflict markers. Works as `git mergetool`.
 - Syntax highlighting on top of the change colours, for 29 languages and formats: Swift, C, C++, Objective-C, Java, Kotlin, C#, Scala, Dart, JavaScript, TypeScript, Python, Ruby, Go, Rust, PHP, shell, SQL, Lua, HTML, XML, CSS, JSON, YAML, TOML, INI, Markdown, Makefile and Dockerfile. The language is picked from the file name or a `#!` line; ⌥⌘Y switches it off.
 - Image comparison in three views: side by side, overlay (fade from one image to the other), and difference (every changed pixel highlighted, more strongly the more it changed, changed regions outlined, with a count of differing pixels). Zoom and pan are shared by both sides. Reads PNG, JPEG, HEIC, TIFF, GIF, WebP and other formats macOS can decode; images also open from a folder comparison.
+- Unified layout: besides the two side-by-side layouts (Fluid and Blocks), both files can be shown in one column, with removed lines in red and added lines in green and both files' line numbers.
+- Find (Command-F) searches both files at once, highlights every match, shows the count, and opens folded unchanged lines when a match is inside them. It is not case sensitive. There is no replace and no regular expressions.
+- Ignore whitespace (View menu, or the button in the bottom bar): indentation, trailing whitespace and the amount of whitespace between words stop counting as differences. Whitespace added where there was none still counts.
+- Working copy changes: open a folder in a Git repository (`twofold .`, File › Open Repository…, or drop the folder on the app) and Twofold lists every file that differs from the last commit, including untracked files, and compares the committed version (HEAD) with the working copy. The window is live: it follows edits, new files, staging, commits, checkouts and reverts as they happen, whether they come from an editor, a terminal or a coding agent. The sidebar marks staged, partly staged, untracked and unmerged files. Updates can be paused. The working copy side can be edited and saved; the committed side is read-only. Twofold does not stage, commit or discard, and it does not show history.
 - Unchanged runs fold away, soft wrapping, an overview strip of all changes, animated next/previous change navigation (⌘↓ / ⌘↑).
 - Reloads automatically when either file changes on disk.
 - Reads UTF-8, UTF-16 and Latin-1 text with LF, CRLF or CR line endings. A difference in line endings alone is not shown as a change.
@@ -30,9 +34,6 @@ Key facts:
 ## What it does not do (yet)
 
 - The three-way merge view has no separate pane for the common base, and its result pane has no syntax colours or line numbers. It merges text files only.
-- Unified layout: besides the two side-by-side layouts (Fluid and Blocks), both files can be shown in one column, with removed lines in red and added lines in green and both files' line numbers.
-- Find (Command-F) searches both files at once, highlights every match, shows the count, and opens folded unchanged lines when a match is inside them. It is not case sensitive. There is no replace and no regular expressions.
-- Ignore whitespace (View menu, or the button in the bottom bar): indentation, trailing whitespace and the amount of whitespace between words stop counting as differences. Whitespace added where there was none still counts.
 - No PDF or general binary diff. Binary files that are not images are detected and reported as identical or different, nothing more. Animated and multi-page images are compared by their first frame.
 - macOS only. There is no Windows or Linux version.
 

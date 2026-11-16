@@ -578,6 +578,57 @@ final class ThreeWayMergeTests: XCTestCase {
     }
 }
 
+final class GitStatusTests: XCTestCase {
+    private let zero = String(repeating: "0", count: 40)
+    private let h1 = String(repeating: "a", count: 40), h2 = String(repeating: "b", count: 40)
+
+    private func parse(_ records: [String]) -> GitStatus {
+        GitStatus.parse(Data(records.map { $0 + "\0" }.joined().utf8))
+    }
+
+    func testBranchAndKinds() {
+        let s = parse([
+            "# branch.oid \(h1)", "# branch.head main",
+            "1 .M N... 100644 100644 100644 \(h1) \(h1) src/a.swift",
+            "1 M. N... 100644 100644 100644 \(h1) \(h2) src/b.swift",
+            "1 MM N... 100644 100644 100644 \(h1) \(h2) with space.txt",
+            "1 A. N... 000000 100644 100644 \(zero) \(h2) new.txt",
+            "1 .D N... 100644 100644 000000 \(h1) \(h1) gone.txt",
+            "? notes.md",
+        ])
+        XCTAssertEqual(s.branch, "main")
+        XCTAssertEqual(s.changes.map(\.path), ["gone.txt", "new.txt", "notes.md", "with space.txt", "src/a.swift", "src/b.swift"])
+        let byPath = Dictionary(uniqueKeysWithValues: s.changes.map { ($0.path, $0) })
+        XCTAssertEqual(byPath["src/a.swift"], GitChange(path: "src/a.swift", kind: .modified, staging: GitChange.Staging.none, headID: h1))
+        XCTAssertEqual(byPath["src/b.swift"]?.staging, .full)
+        XCTAssertEqual(byPath["with space.txt"]?.staging, .partial)
+        XCTAssertEqual(byPath["new.txt"], GitChange(path: "new.txt", kind: .added, staging: .full, headID: nil))
+        XCTAssertEqual(byPath["gone.txt"]?.kind, .deleted)
+        XCTAssertEqual(byPath["notes.md"], GitChange(path: "notes.md", kind: .untracked))
+    }
+
+    func testRenameCarriesItsOriginalPath() {
+        let s = parse(["# branch.head (detached)", "2 R. N... 100644 100644 100644 \(h1) \(h1) R100 new name.txt", "old name.txt"])
+        XCTAssertNil(s.branch)
+        XCTAssertEqual(s.changes, [GitChange(path: "new name.txt", originalPath: "old name.txt", kind: .renamed, staging: .full, headID: h1)])
+    }
+
+    func testEdgeCases() {
+        // Added and deleted again leaves nothing to show; a submodule is skipped; an unmerged file compares against "ours".
+        let s = parse([
+            "1 AD N... 000000 100644 000000 \(zero) \(h2) fleeting.txt",
+            "1 .M S.M. 160000 160000 160000 \(h1) \(h1) vendor/lib",
+            "u UU N... 100644 100644 100644 100644 \(h1) \(h2) \(h1) both.txt",
+            "1 D. N... 100644 000000 000000 \(h1) \(zero) kept.txt", "? kept.txt",
+        ])
+        XCTAssertEqual(s.changes, [
+            GitChange(path: "both.txt", kind: .conflicted, headID: h2),
+            GitChange(path: "kept.txt", kind: .modified, staging: .partial, headID: h1),
+        ])
+        XCTAssertEqual(parse([]), GitStatus())
+    }
+}
+
 final class ImageDiffTests: XCTestCase {
     /// A solid image with some pixels replaced.
     private func image(_ w: Int, _ h: Int, fill: [UInt8] = [10, 20, 30, 255], _ edits: [(Int, Int, [UInt8])] = []) -> PixelBuffer {

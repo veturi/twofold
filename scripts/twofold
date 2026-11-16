@@ -2,6 +2,7 @@
 # twofold — open two files or two folders in Twofold.
 #
 #   twofold A B          compare A and B in a new window
+#   twofold DIR          show what has changed in the Git repository at DIR since the last commit
 #   twofold --wait A B   block until the window closes (for git difftool)
 #   twofold --wait --base BASE --output MERGED LOCAL REMOTE
 #                        three-way merge of LOCAL and REMOTE, saved to MERGED (for git mergetool)
@@ -26,7 +27,7 @@ if [[ ! -d "$APP" ]]; then
 fi
 
 usage() {
-    sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 # A path as the app must see it: absolute, since `open` does not pass on the working directory.

@@ -11,6 +11,10 @@ final class PathBarView: NSView {
     var paneWidth: CGFloat = 300 { didSet { needsLayout = true; needsDisplay = true } }
     var ribbonWidth: CGFloat = 64 { didSet { needsLayout = true; needsDisplay = true } }
     let swapButton = NSButton()
+    /// Per side: a bold name shown before the path, and the folder the path is shown relative to.
+    /// A working copy comparison uses them to say "HEAD" and "Working Copy" and to leave out where the files are kept.
+    var titles: (String?, String?) = (nil, nil) { didSet { needsDisplay = true } }
+    var roots: (URL?, URL?) = (nil, nil) { didSet { needsDisplay = true } }
     /// When set, the bar shows this one file across its whole width, under this badge letter and title.
     var single: (letter: String, title: String, url: URL)? { didSet { swapButton.isHidden = single != nil; needsDisplay = true } }
 
@@ -48,12 +52,13 @@ final class PathBarView: NSView {
             return
         }
         let gap: CGFloat = hasRibbon ? 16 : 40
-        drawSide("A", urls.0, edited.0, CGRect(x: 0, y: 0, width: paneWidth - gap, height: bounds.height))
+        drawSide("A", urls.0, edited.0, CGRect(x: 0, y: 0, width: paneWidth - gap, height: bounds.height), title: titles.0, root: roots.0)
         let rx = paneWidth + ribbonWidth
-        drawSide("B", urls.1, edited.1, CGRect(x: rx, y: 0, width: bounds.width - rx - DiffCanvasView.stripWidth, height: bounds.height))
+        drawSide("B", urls.1, edited.1, CGRect(x: rx, y: 0, width: bounds.width - rx - DiffCanvasView.stripWidth, height: bounds.height),
+                 title: titles.1, root: roots.1)
     }
 
-    private func drawSide(_ letter: String, _ url: URL?, _ edited: Bool, _ rect: CGRect, title: String? = nil) {
+    private func drawSide(_ letter: String, _ url: URL?, _ edited: Bool, _ rect: CGRect, title: String? = nil, root: URL? = nil) {
         var x = rect.minX + 12
         let mid = rect.midY
         Badge.draw(letter, in: CGRect(x: x, y: mid - 8, width: 18, height: 16), filled: true)
@@ -71,11 +76,15 @@ final class PathBarView: NSView {
             NSAttributedString(string: "No file", attributes: dim).draw(at: CGPoint(x: x, y: mid - 8))
             return
         }
-        let dir = (url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath
+        var dir = (url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath
+        if let root {
+            let full = url.deletingLastPathComponent().standardizedFileURL.path, base = root.standardizedFileURL.path
+            dir = full.hasPrefix(base) ? String(full.dropFirst(base.count)) : full
+        }
         var comps = dir.split(separator: "/").map(String.init)
         var truncated = false
         // A bar with the whole width to itself would otherwise spell out a very long path.
-        if title != nil, comps.count > 3 {
+        if title != nil, root == nil, comps.count > 3 {
             comps = Array(comps.suffix(3))
             truncated = true
         }
