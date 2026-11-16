@@ -256,7 +256,7 @@ Out of this stage: typing, three-way merge, binary and image files.
 Shipped. As built:
 
 - Typing, deletion, cut, paste, Return with the current line's indentation, and Tab, in either pane of an editable comparison. Caret movement by character, word, line and visual row, with Shift to select. Input methods work through `NSTextInputClient`.
-- The whole file is diffed and tokenized again after every keystroke, off the main thread. Keystrokes that arrive meanwhile wait in a queue and are applied in order, so nothing is lost and nothing runs against stale text. There is no incremental path: on very large files typing lags by the time of one diff (roughly 0.1 s per 100,000 lines).
+- The whole file is diffed and tokenized again after every keystroke, off the main thread. Keystrokes that arrive meanwhile wait in a queue and are applied in order, so nothing is lost and nothing runs against stale text. There is no incremental path: on very large files typing lags by the time of one diff and tokenizing pass. Measured: about 0.1 s for 100,000 lines with 1% changed (from the benchmarks), and about 1 s per keystroke on a 91,500-line file with 13,500 changes.
 - Consecutive keystrokes on one side are one undo step. After undo or redo the caret goes to the end of the lines that changed, not to its exact earlier position.
 - The keyboard edits only after a click has placed a caret; before that the arrow keys and Space scroll, as in v1.
 - Not built: typing into an empty file or a file that exists on one side only, drag and drop of text, multiple carets, and find and replace.
