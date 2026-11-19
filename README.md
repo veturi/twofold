@@ -169,7 +169,7 @@ Copyright © 2026 the project authors.
 
 The project name and app icon are not covered by that license; see `TRADEMARKS.md`.
 
-The GitHub version is free forever. A Mac App Store version will cost a one-time 4,99 € to cover Apple's developer fee; it is the same app, and there will never be a subscription. If you use the free version and want to support the project, buying the App Store version once it's out is the simplest way. Contributions are welcome under the terms in `CONTRIBUTING.md`.
+Twofold is completely free and open source: there is no paid version, and there will never be a subscription. A Mac App Store build is being considered as a way to cover the project's small running costs, but nothing is decided. The App Store's sandbox would cost the app features, the git integration above all, so it needs its own plan first (`PLAN.md`, section 11.6). Contributions are welcome under the terms in `CONTRIBUTING.md`.
 
 ## Website
 

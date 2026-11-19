@@ -214,7 +214,7 @@ The prose screenshot uses a proportional font. v1 uses a monospaced font for eve
 
 ## 11. Roadmap after v1
 
-Sections 1 to 10 describe version 1 as it was planned and built. This section is the plan from here on and replaces the ordering in section 9. The public version of it is the Roadmap section of `docs/index.html`; keep the two in step.
+Sections 1 to 10 describe version 1 as it was planned and built. This section is the plan from here on and replaces the ordering in section 9. The public version of it is the Roadmap section of `docs/index.html`; keep the shipped items there in step with this table. The Mac App Store item is deliberately left off the website, which presents Twofold as completely free and open source, until 11.6 has been decided.
 
 | # | Item | Status |
 |---|---|---|
@@ -225,7 +225,7 @@ Sections 1 to 10 describe version 1 as it was planned and built. This section is
 | – | Three-way merge, usable as `git mergetool` | Shipped |
 | – | Unified layout, ignore whitespace, find | Shipped |
 | – | Live working copy changes | Shipped |
-| 1 | Mac App Store build | Next |
+| 1 | Mac App Store build | To be planned; not decided (11.6) |
 
 Proportional fonts for prose (section 10) stay unscheduled.
 
@@ -299,6 +299,16 @@ Shipped. One folder inside a Git repository (`twofold .`, File › Open Reposito
 - **Stepping.** Next Change past the last change of a file opens the next file, and Previous Change before the first opens the previous file at its last change. Folder comparisons got this too.
 - **Not built:** notifications while the app is in the background, file history, staging, committing or discarding from the window, comparing against the index or another commit, detecting a working copy behind `git difftool --dir-diff`, changes inside submodules, and remembering repositories in the start window's recent list.
 
-### 11.6 Open point: sandbox
+### 11.6 Open point: Mac App Store build
 
-Section 2 turns the sandbox off, which is right for the GitHub build. The Mac App Store build must be sandboxed, and a sandboxed app cannot write to (or, strictly, read) arbitrary paths passed on the command line without the user granting access. The sandboxed build also cannot run `git` or write `~/.gitconfig`, so its Git Integration window will have to show the commands to copy instead of switches, and the working copy window (11.5), which depends on running `git status`, needs another way to read a repository or has to be left out of that build. This does not block stage 1, but saving should go through one place so that security-scoped access can be added there for the App Store build.
+Twofold is free and open source, and that does not change. A Mac App Store build is being considered as a way to cover the project's small running costs (Apple's developer fee, the domain), but it is not a commitment: it needs its own plan first, and the outcome of that plan may be not to do it. Nothing public (website, README) should promise it, name a price or a date until then.
+
+The reason it needs a separate plan is the sandbox, which costs the app real functionality. Section 2 turns the sandbox off, which is right for the GitHub build. A Mac App Store build must be sandboxed, and a sandboxed app cannot write to (or, strictly, read) arbitrary paths passed on the command line without the user granting access. The sandboxed build also cannot run `git` or write `~/.gitconfig`, so its Git Integration window will have to show the commands to copy instead of switches, and the working copy window (11.5), which depends on running `git status`, needs another way to read a repository or has to be left out of that build. Saving already goes through one place (`DiffViewController.save()`), so that security-scoped access could be added there.
+
+The plan has to answer, before any build work starts:
+
+- **Git.** Whether a build without `git` (no working copy window, no switches in Git Integration, possibly a weaker `git difftool`/`git mergetool` launcher) is still worth publishing, or whether there is an acceptable way to keep those features inside the sandbox.
+- **File access.** How paths from the command line, drops and folder comparisons get security-scoped access without a permission prompt for every comparison.
+- **Two builds.** What it costs to keep a sandboxed variant building and tested next to the GitHub build, and how users are told which features each has.
+- **Price and licence.** Whether to charge and how much. The contribution terms in `CONTRIBUTING.md` and the trademark policy already leave room for the maintainer to publish there.
+- **Worth it at all.** Whether the income would cover the costs it is meant to cover, against the extra work and a lesser app carrying the same name.

@@ -15,8 +15,8 @@ Paying once doesn't fix this. What fixes it is code that nobody can abandon.
 ## What we do instead
 
 - **Open source under the GPL v3.** The code is public and stays public. If we stop working on Twofold, anyone can carry on, and no one can lock it away in a closed fork.
-- **Free on GitHub, forever.** Build it yourself or download a release. It's the full app with nothing held back.
-- **One honest price on the App Store.** The Mac App Store version costs 4,99 € once, to cover Apple's developer fee. It's the same app as the GitHub version, and it will never have a subscription.
+- **Completely free, forever.** Build it yourself or download a release from GitHub. It's the full app with nothing held back, and there is no paid version.
+- **No subscription, ever.** We may one day offer a Mac App Store build to cover the project's small running costs, but that is undecided and needs its own plan, because Apple's sandbox would cost the app features. Whatever comes of it, the free, full version on GitHub stays.
 - **No accounts, no telemetry, no lock-in.** It reads two files and shows you the difference. That's all it does.
 
 ## Why now: the age of AI

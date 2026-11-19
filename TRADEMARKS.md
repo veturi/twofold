@@ -18,5 +18,5 @@ You may not, without written permission:
 
 If you distribute a fork, give it a different name and a different icon.
 
-Official builds are published only on the project's GitHub releases page and, in future, on the
-Mac App Store by the maintainer.
+Official builds are published only on the project's GitHub releases page. If the maintainer ever
+publishes Twofold on the Mac App Store, that will be announced on that page and on the project's website.

@@ -17,7 +17,9 @@
   <meta property="og:image:alt" content="Twofold, the prettiest diff on your Mac. Free forever.">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#8b46f0">
-  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" type="image/png" sizes="96x96" href="/assets/favicon.png">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="apple-touch-icon" href="/assets/icon.png">
   <script src="/assets/analytics.js" defer></script>
   <script type="application/ld+json">
@@ -86,7 +88,7 @@
         "@type": "FAQPage",
         "mainEntity": [
           { "@type": "Question", "name": "Is Twofold really free?",
-            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Twofold is free and open source under the GPLv3, with no subscription, account or license key. A Mac App Store version is planned at 4,99 € as a one-time purchase for people who want automatic updates or to support the project; it is the same app." } },
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Twofold is free and open source under the GPLv3, with no subscription, account or license key. There is no paid version and nothing is locked: every feature is in the one app, and all of its source code is public." } },
           { "@type": "Question", "name": "Which Macs does Twofold run on?",
             "acceptedAnswer": { "@type": "Answer", "text": "Twofold needs macOS 26 or later and runs natively on both Apple silicon and Intel Macs." } },
           { "@type": "Question", "name": "Can Twofold compare folders?",
@@ -176,7 +178,7 @@
             Build from source
           </a>
         </div>
-        <p class="mt-4 text-sm text-zinc-500">macOS 26 or later · Apple silicon &amp; Intel · Free on GitHub, 4,99 € once on the Mac App Store (coming later)</p>
+        <p class="mt-4 text-sm text-zinc-500">macOS 26 or later · Apple silicon &amp; Intel · Completely free and open source, GPLv3</p>
       </div>
 
       <!-- Screenshot -->
@@ -357,7 +359,7 @@
             <tbody class="divide-y divide-black/5 dark:divide-white/5">
               <tr>
                 <td class="px-5 py-4 font-medium">Price</td>
-                <td class="bg-brand/5 px-5 py-4 font-semibold text-brand">Free on GitHub<br><span class="font-normal text-zinc-500">4,99 € once on the App Store</span></td>
+                <td class="bg-brand/5 px-5 py-4 font-semibold text-brand">Free<br><span class="font-normal text-zinc-500">and open source</span></td>
                 <td class="px-5 py-4">Subscription</td>
                 <td class="px-5 py-4">Paid license</td>
                 <td class="px-5 py-4">Free with Xcode</td>
@@ -446,37 +448,23 @@
     <!-- Pricing -->
     <section id="pricing" class="mx-auto max-w-5xl px-6 py-24">
       <div class="mx-auto max-w-2xl text-center">
-        <h2 class="text-4xl font-bold tracking-tight sm:text-5xl">Two ways to get it.<br>Neither is a subscription.</h2>
-        <p class="mt-4 text-lg text-zinc-600 dark:text-zinc-400">Same app, same features, nothing locked. You only choose how it gets onto your Mac.</p>
+        <h2 class="text-4xl font-bold tracking-tight sm:text-5xl">Completely free.<br>Completely open source.</h2>
+        <p class="mt-4 text-lg text-zinc-600 dark:text-zinc-400">One app with every feature in it. No paid version, no trial, nothing locked.</p>
       </div>
-      <div class="mt-14 grid gap-6 md:grid-cols-2">
-        <div class="flex flex-col rounded-3xl border border-black/5 bg-white p-8 dark:border-white/10 dark:bg-white/5">
-          <h3 class="text-xl font-semibold">GitHub</h3>
-          <div class="mt-4 flex items-baseline gap-2"><span class="text-5xl font-bold tracking-tight">0 €</span><span class="text-zinc-500">forever</span></div>
-          <ul class="mt-6 flex-1 space-y-3 text-zinc-600 dark:text-zinc-400">
-            <li class="flex gap-3"><span class="text-brand">✓</span> Download a release, or build it with <code class="font-mono text-sm">make start</code></li>
-            <li class="flex gap-3"><span class="text-brand">✓</span> Command line tool, <code class="font-mono text-sm">git difftool</code> and <code class="font-mono text-sm">git mergetool</code></li>
-            <li class="flex gap-3"><span class="text-brand">✓</span> All source code, GPLv3</li>
-          </ul>
-          <a href="https://github.com/veturi/twofold/releases/latest" class="mt-8 rounded-full border border-zinc-300 px-6 py-3 text-center font-semibold hover:bg-zinc-50 dark:border-white/15 dark:hover:bg-white/10">Download from GitHub</a>
-        </div>
-        <div class="relative flex flex-col rounded-3xl border-2 border-brand bg-white p-8 shadow-xl shadow-brand/10 dark:bg-white/5">
-          <span class="absolute -top-3 left-8 rounded-full bg-brand px-3 py-0.5 text-xs font-semibold text-white">Coming later</span>
-          <h3 class="text-xl font-semibold">Mac App Store</h3>
-          <div class="mt-4 flex items-baseline gap-2"><span class="text-5xl font-bold tracking-tight">4,99 €</span><span class="text-zinc-500">once</span></div>
-          <ul class="mt-6 flex-1 space-y-3 text-zinc-600 dark:text-zinc-400">
-            <li class="flex gap-3"><span class="text-brand">✓</span> One-click install, automatic updates</li>
-            <li class="flex gap-3"><span class="text-brand">✓</span> Signed and reviewed by Apple</li>
-            <li class="flex gap-3"><span class="text-brand">✓</span> Covers Apple's yearly developer fee, nothing more</li>
-            <li class="flex gap-3"><span class="text-brand">✓</span> The easiest way to support the project</li>
-          </ul>
-          <div class="mt-8 rounded-full bg-brand/10 px-6 py-3 text-center font-semibold text-brand dark:text-brand-light">Not on the App Store yet</div>
-        </div>
+      <div class="relative mx-auto mt-14 flex max-w-xl flex-col rounded-3xl border-2 border-brand bg-white p-8 shadow-xl shadow-brand/10 dark:bg-white/5">
+        <h3 class="text-xl font-semibold">Twofold</h3>
+        <div class="mt-4 flex items-baseline gap-2"><span class="text-5xl font-bold tracking-tight">0 €</span><span class="text-zinc-500">forever</span></div>
+        <ul class="mt-6 flex-1 space-y-3 text-zinc-600 dark:text-zinc-400">
+          <li class="flex gap-3"><span class="text-brand">✓</span> Every feature, with no subscription, account or license key</li>
+          <li class="flex gap-3"><span class="text-brand">✓</span> Download a release, or build it with <code class="font-mono text-sm">make start</code></li>
+          <li class="flex gap-3"><span class="text-brand">✓</span> Command line tool, <code class="font-mono text-sm">git difftool</code> and <code class="font-mono text-sm">git mergetool</code></li>
+          <li class="flex gap-3"><span class="text-brand">✓</span> All source code on GitHub under the GPLv3, so it stays free</li>
+        </ul>
+        <a href="https://github.com/veturi/twofold/releases/latest" class="mt-8 rounded-full bg-brand px-6 py-3 text-center font-semibold text-white shadow-lg shadow-brand/30 transition hover:bg-brand-light">Download from GitHub</a>
       </div>
       <p class="mt-8 text-center text-sm text-zinc-500">
-        Happy with the free version and want to say thanks? Buying it on the App Store, once it's there, keeps Twofold going.<br>
-        Official builds come only from this project's GitHub releases and, later, the Mac App Store.
-        If you see Twofold for sale anywhere else, it isn't us.
+        Official builds come only from this project's GitHub releases.
+        If you see Twofold for sale anywhere, it isn't us.
       </p>
     </section>
 
@@ -516,10 +504,6 @@
           <div class="flex gap-4 rounded-2xl border border-add/30 bg-add/5 p-6">
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-add"></span>
             <div><h3 class="font-semibold">Live working copy changes: shipped</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Everything you have not committed yet, in one window that keeps up while you work.</p></div>
-          </div>
-          <div class="flex gap-4 rounded-2xl border border-brand/30 bg-brand/5 p-6">
-            <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-brand"></span>
-            <div><h3 class="font-semibold">Mac App Store: next</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">4,99 € once, for one-click install and automatic updates. The GitHub version stays free, and there will never be a subscription.</p></div>
           </div>
         </div>
       </div>
@@ -588,7 +572,7 @@ git config --global mergetool.twofold.trustExitCode false</code></pre>
         <div class="mt-12 divide-y divide-black/5 dark:divide-white/10">
           <details class="group py-5" open>
             <summary class="cursor-pointer list-none text-lg font-semibold">Is Twofold really free?</summary>
-            <p class="mt-3 text-zinc-600 dark:text-zinc-400">Yes. Twofold is free and open source under the GPLv3, with no subscription, account or license key. A Mac App Store version is planned at 4,99 € as a one-time purchase, for people who want automatic updates or to support the project. It's the same app.</p>
+            <p class="mt-3 text-zinc-600 dark:text-zinc-400">Yes. Twofold is free and open source under the GPLv3, with no subscription, account or license key. There is no paid version and nothing is locked: every feature is in the one app, and all of its source code is public.</p>
           </details>
           <details class="group py-5">
             <summary class="cursor-pointer list-none text-lg font-semibold">Which Macs does Twofold run on?</summary>

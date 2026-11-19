@@ -5,7 +5,7 @@
 Key facts:
 
 - Platform: macOS 26 or later, universal binary for Apple silicon and Intel.
-- Price: free from GitHub. A Mac App Store version is planned at 4,99 € as a one-time purchase (same app, no subscription).
+- Price: completely free and open source (GPLv3). There is no paid version; every feature is in the one app, downloaded from GitHub.
 - License: GPLv3. Source code: https://github.com/veturi/twofold
 - Download: https://github.com/veturi/twofold/releases/latest
 - Website: https://twofoldapp.org/
