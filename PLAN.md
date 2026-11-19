@@ -214,7 +214,7 @@ The prose screenshot uses a proportional font. v1 uses a monospaced font for eve
 
 ## 11. Roadmap after v1
 
-Sections 1 to 10 describe version 1 as it was planned and built. This section is the plan from here on and replaces the ordering in section 9. The public version of it is the Roadmap section of `docs/index.html`; keep the shipped items there in step with this table. The Mac App Store item is deliberately left off the website, which presents Twofold as completely free and open source, until 11.6 has been decided.
+Sections 1 to 10 describe version 1 as it was planned and built. This section is the plan from here on and replaces the ordering in section 9. The public version of it is the Roadmap section of `docs/index.html`; keep it in step with this table. The Mac App Store item alone is deliberately left off the website, which presents Twofold as completely free and open source, until 11.6 has been decided.
 
 | # | Item | Status |
 |---|---|---|
@@ -226,7 +226,8 @@ Sections 1 to 10 describe version 1 as it was planned and built. This section is
 | – | Unified layout, ignore whitespace, find | Shipped |
 | – | Live working copy changes | Shipped |
 | – | Start window: Compare, Recents, Git and What's New | Shipped |
-| 1 | Mac App Store build | To be planned; not decided (11.6) |
+| 1 | Optional automatic updates from GitHub (11.8) | Planned |
+| 2 | Mac App Store build | To be planned; not decided (11.6) |
 
 Proportional fonts for prose (section 10) stay unscheduled.
 
@@ -324,3 +325,14 @@ Shipped. The window that opens without files, rebuilt after a design in `design/
 - **Git** shows recent repositories as cards with their branch and number of changes (read with `git status` when the page opens), and the diff and merge tool switches that used to be the Git Integration window. Twofold › Git Integration… opens this page.
 - **What's New** has the highlights of the latest major release, from `WhatsNew` in `WhatsNewPage.swift`. The sidebar badges it with the version until it has been opened once; it never opens by itself. Change `WhatsNew.version` and the features with each major release.
 - **Snapshots.** `--page compare|recents|git|whats-new` picks the page. Test data comes in as user defaults for that run only, e.g. `-recentComparisons '<array>…</array>'` and `-whatsNewSeen 1.1`.
+
+### 11.8 Optional automatic updates from GitHub
+
+Planned. The app learns about new versions from the project's GitHub releases and, in the end, installs them itself. It is optional: the automatic check is something the user turns on (asked once, or off by default), and Check for Updates… in the app menu always works by hand. The only thing a check sends is a request to GitHub for the latest release; that has to be said plainly wherever the app is described as having no telemetry.
+
+Two stages:
+
+1. **Check and notify.** Ask the GitHub releases API for the latest release, compare it with the running version, and offer a link to the release page. Needs no signing.
+2. **Download and install in place.** Download the zip, verify it, replace the bundle and relaunch. This waits for Developer ID signing and notarization: the app can then check that an update is signed by the same team, and permissions granted by the user survive updates. On ad-hoc builds it would need a signing key of our own for a worse result, so it is not built for them.
+
+Constraints: no third-party dependencies, so no Sparkle; an app that macOS runs from a read-only copy (still in Downloads) cannot replace itself and should say so; a Homebrew cask must be marked as updating itself; a Mac App Store build (11.6) must leave the updater out.
