@@ -18,12 +18,9 @@ enum Snapshot {
         }
         // One folder inside a Git working copy: that working copy's changes.
         let repository = o.paths.count == 1 ? WorkingCopy.locate(URL(fileURLWithPath: o.paths[0])) : nil
-        if o.paths.count < 2 && repository == nil {
-            let welcome = WelcomeWindowController(prefill: o.paths.first.map { URL(fileURLWithPath: $0) })
-            if o.appearance == .dark { welcome.window?.appearance = NSAppearance(named: .darkAqua) }
-            welcome.window?.layoutIfNeeded()
-            capture(welcome.window!, to: out, scale: o.scale)
-            exit(0)
+        if o.paths.count < 2 && (repository == nil || o.page != nil) {
+            runWelcome(o, to: out)
+            return
         }
         let p = Preferences.shared
         if let l = o.layout { p.overrides["layout"] = l.rawValue }
@@ -182,21 +179,42 @@ enum Snapshot {
 
     /// The Git Integration window. `--git-setup diff=on,merge=off` flips those switches first, and
     /// `--git-setup show` only shows the current state. Set `GIT_CONFIG_GLOBAL` to try it on a scratch file.
-    private static func runGitSetup(_ setup: String, _ o: LaunchOptions, to out: String) {
-        let wc = GitSetupWindowController()
+    private static func welcome(_ o: LaunchOptions, page: WelcomeWindowController.Page) -> WelcomeWindowController {
+        let wc = WelcomeWindowController(prefill: o.paths.first.map { URL(fileURLWithPath: $0) }, page: page, remembersSeen: false)
         switch o.appearance {
         case .dark?: wc.window?.appearance = NSAppearance(named: .darkAqua)
         case .light?: wc.window?.appearance = NSAppearance(named: .aqua)
         default: break
         }
+        return wc
+    }
+
+    /// The start window, on the page `--page` names. With one path, that file or folder is in well A.
+    private static func runWelcome(_ o: LaunchOptions, to out: String) {
+        let page = o.page.flatMap(WelcomeWindowController.Page.init) ?? .compare
+        let wc = welcome(o, page: page)
         Task {
-            await wc.refresh()
+            if page == .git { await wc.gitPage.refresh() }
+            // Let the repository cards read their status.
+            try? await Task.sleep(for: .milliseconds(page == .git ? 600 : 50))
+            wc.window?.layoutIfNeeded()
+            capture(wc.window!, to: out, scale: o.scale)
+            exit(0)
+        }
+    }
+
+    /// The start window's Git page, after flipping its switches as `setup` says ("diff=on,merge=off"; "show" changes nothing).
+    private static func runGitSetup(_ setup: String, _ o: LaunchOptions, to out: String) {
+        let wc = welcome(o, page: .git)
+        let page = wc.gitPage
+        Task {
+            await page.refresh()
             for item in setup.split(separator: ",") {
                 let parts = item.split(separator: "=")
                 guard parts.count == 2, parts[0] == "diff" || parts[0] == "merge" else { continue }
-                await wc.set(parts[0] == "diff" ? .diff : .merge, on: parts[1] == "on")
+                await page.set(parts[0] == "diff" ? .diff : .merge, on: parts[1] == "on")
             }
-            print("diff: \(wc.states[.diff].map { "\($0)" } ?? "unavailable")  merge: \(wc.states[.merge].map { "\($0)" } ?? "unavailable")")
+            print("diff: \(page.states[.diff].map { "\($0)" } ?? "unavailable")  merge: \(page.states[.merge].map { "\($0)" } ?? "unavailable")")
             wc.window?.layoutIfNeeded()
             capture(wc.window!, to: out, scale: o.scale)
             exit(0)

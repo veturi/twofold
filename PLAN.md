@@ -93,7 +93,7 @@ twofold/
       Windows/               window controller, toolbar, menus
       TextDiff/              pane view, ribbon view, scroll coordinator, line cache
       FolderDiff/            sidebar outline, status badges, filter
-      Welcome/               drop-zone window
+      Welcome/               start window: Compare, Recents, Git, What's New
       Snapshot.swift         offscreen render to PNG, for verification
   Tests/
     DiffCoreTests/
@@ -225,6 +225,7 @@ Sections 1 to 10 describe version 1 as it was planned and built. This section is
 | – | Three-way merge, usable as `git mergetool` | Shipped |
 | – | Unified layout, ignore whitespace, find | Shipped |
 | – | Live working copy changes | Shipped |
+| – | Start window: Compare, Recents, Git and What's New | Shipped |
 | 1 | Mac App Store build | To be planned; not decided (11.6) |
 
 Proportional fonts for prose (section 10) stay unscheduled.
@@ -276,7 +277,7 @@ Shipped. `twofold --wait --base "$BASE" --output "$MERGED" "$LOCAL" "$REMOTE"` o
 - **Conflicts are text.** An unresolved conflict sits in the result between git's conflict markers. Nothing else records whether a conflict is resolved: it is resolved when its markers are gone, however that happened (a side was taken, or the text was edited by hand). Undo therefore needs no bookkeeping of its own.
 - **Choosing.** Every change has two rings in the ribbon, ticked for the side or sides the result holds. Clicking one takes that side; ⌥⌘1, ⌥⌘2 and ⌥⌘3 take A, B or both for the current change. Unresolved conflicts are amber in both halves, and ⌃⌘↓ / ⌃⌘↑ step through them.
 - **Saving.** ⌘S writes the result to the output file in that file's encoding and line-ending style (A's, if the file does not exist yet). Saving with conflicts left asks first; closing with an unsaved result asks too. Git is told nothing through the exit code (`trustExitCode false`): it sees that the file was written.
-- **Setup.** The Git Integration window (Twofold menu, and a link in the start window) has a switch each for diff tool and merge tool. It runs `git config --global` itself and points git at the launcher inside the app bundle by full path, so nothing needs to be on the `PATH`. The switches show what the configuration says, including another tool being set or a hand-written command.
+- **Setup.** The Git page of the start window (also Twofold › Git Integration…) has a switch each for diff tool and merge tool. It runs `git config --global` itself and points git at the launcher inside the app bundle by full path, so nothing needs to be on the `PATH`. The switches show what the configuration says, including another tool being set or a hand-written command.
 - **Not built:** a pane for the base, syntax colours, line numbers and visible line endings in the result pane, per-line terminators in the result (a file with mixed line endings is saved with its most common one), reloading when an input changes on disk, merging images or binary files, and starting a merge from the start window (it is command-line only).
 
 ### 11.4 Unified layout, ignore whitespace, find
@@ -297,18 +298,29 @@ Shipped. One folder inside a Git repository (`twofold .`, File › Open Reposito
 - **Live.** The repository folder is watched with FSEvents, `.git` included, so edits, staging, commits, checkouts and reverts all lead to a new `git status` shortly after. The selected file stays selected while it is still changed; when it is not, the first file is selected, and when nothing is left the window says so. A file with unsaved edits here is never switched away from. Git is run with `GIT_OPTIONAL_LOCKS=0` so that reading the status does not rewrite the index and wake the watcher again.
 - **Pause.** A toolbar button freezes both the list and the open file; resuming catches up.
 - **Stepping.** Next Change past the last change of a file opens the next file, and Previous Change before the first opens the previous file at its last change. Folder comparisons got this too.
-- **Not built:** notifications while the app is in the background, file history, staging, committing or discarding from the window, comparing against the index or another commit, detecting a working copy behind `git difftool --dir-diff`, changes inside submodules, and remembering repositories in the start window's recent list.
+- **Not built:** notifications while the app is in the background, file history, staging, committing or discarding from the window, comparing against the index or another commit, detecting a working copy behind `git difftool --dir-diff`, and changes inside submodules. Opened repositories are remembered in the start window (11.7).
 
 ### 11.6 Open point: Mac App Store build
 
 Twofold is free and open source, and that does not change. A Mac App Store build is being considered as a way to cover the project's small running costs (Apple's developer fee, the domain), but it is not a commitment: it needs its own plan first, and the outcome of that plan may be not to do it. Nothing public (website, README) should promise it, name a price or a date until then.
 
-The reason it needs a separate plan is the sandbox, which costs the app real functionality. Section 2 turns the sandbox off, which is right for the GitHub build. A Mac App Store build must be sandboxed, and a sandboxed app cannot write to (or, strictly, read) arbitrary paths passed on the command line without the user granting access. The sandboxed build also cannot run `git` or write `~/.gitconfig`, so its Git Integration window will have to show the commands to copy instead of switches, and the working copy window (11.5), which depends on running `git status`, needs another way to read a repository or has to be left out of that build. Saving already goes through one place (`DiffViewController.save()`), so that security-scoped access could be added there.
+The reason it needs a separate plan is the sandbox, which costs the app real functionality. Section 2 turns the sandbox off, which is right for the GitHub build. A Mac App Store build must be sandboxed, and a sandboxed app cannot write to (or, strictly, read) arbitrary paths passed on the command line without the user granting access. The sandboxed build also cannot run `git` or write `~/.gitconfig`, so its Git page will have to show the commands to copy instead of switches, and the working copy window (11.5), which depends on running `git status`, needs another way to read a repository or has to be left out of that build. Saving already goes through one place (`DiffViewController.save()`), so that security-scoped access could be added there.
 
 The plan has to answer, before any build work starts:
 
-- **Git.** Whether a build without `git` (no working copy window, no switches in Git Integration, possibly a weaker `git difftool`/`git mergetool` launcher) is still worth publishing, or whether there is an acceptable way to keep those features inside the sandbox.
+- **Git.** Whether a build without `git` (no working copy window, no Git tool switches, possibly a weaker `git difftool`/`git mergetool` launcher) is still worth publishing, or whether there is an acceptable way to keep those features inside the sandbox.
 - **File access.** How paths from the command line, drops and folder comparisons get security-scoped access without a permission prompt for every comparison.
 - **Two builds.** What it costs to keep a sandboxed variant building and tested next to the GitHub build, and how users are told which features each has.
 - **Price and licence.** Whether to charge and how much. The contribution terms in `CONTRIBUTING.md` and the trademark policy already leave room for the maintainer to publish there.
 - **Worth it at all.** Whether the income would cover the costs it is meant to cover, against the extra work and a lesser app carrying the same name.
+
+### 11.7 Start window
+
+Shipped. The window that opens without files, rebuilt after a design in `design/welcome.fig` (OpenPencil; PNG exports in `design/out/`). As built:
+
+- **Layout.** A 960 by 620 window: a translucent sidebar (Compare, Recents, Git, What's New) over artwork drawn in code (`RibbonBackgroundView`), a fan of curves like the comparison ribbon with four bands in the change colours. All of it is in `Theme` as light and dark pairs.
+- **Compare** is where it always opens: the app icon, wells A and B joined by a small ribbon, Choose Files… (⌘O, one panel for both sides) and Open Repository… (⇧⌘O), and the three newest recents. There is no Compare button: the comparison opens as soon as both wells hold two files or two folders, whether dropped, chosen or both. Dropping two items anywhere in the window opens them; one fills the next empty well. A file and a folder show an error in the well filled last.
+- **Recents** lists up to 30 comparisons and repositories, grouped into Today, Yesterday and Earlier, with a filter, Clear…, and on hover Show in Finder and Remove. Entries whose files are gone are hidden. Repositories opened for their working copy changes are recorded too.
+- **Git** shows recent repositories as cards with their branch and number of changes (read with `git status` when the page opens), and the diff and merge tool switches that used to be the Git Integration window. Twofold › Git Integration… opens this page.
+- **What's New** has the highlights of the latest major release, from `WhatsNew` in `WhatsNewPage.swift`. The sidebar badges it with the version until it has been opened once; it never opens by itself. Change `WhatsNew.version` and the features with each major release.
+- **Snapshots.** `--page compare|recents|git|whats-new` picks the page. Test data comes in as user defaults for that run only, e.g. `-recentComparisons '<array>…</array>'` and `-whatsNewSeen 1.1`.

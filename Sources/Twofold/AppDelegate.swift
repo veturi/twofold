@@ -1,6 +1,8 @@
 import AppKit
 
-/// Parsed command-line arguments. Unknown `-NS…`/`-Apple…` pairs from AppKit are skipped.
+/// Parsed command-line arguments. `-key value` pairs (one dash) are skipped: AppKit reads them as
+/// user defaults for this run only, which is how `-NS…` options and snapshot test data such as
+/// `-recentComparisons <plist>` arrive.
 struct LaunchOptions {
     var paths: [String] = []
     var snapshot: String?
@@ -25,6 +27,8 @@ struct LaunchOptions {
     var use: String?
     /// Snapshot runs only: show the Git Integration window, after applying e.g. "diff=on,merge=off" ("show" changes nothing).
     var gitSetup: String?
+    /// Snapshot runs only: the start window page to show ("compare", "recents", "git" or "whats-new").
+    var page: String?
     var ignoreWhitespace = false
     /// Snapshot runs only: search for this text, then step to the next match this many times.
     var find: String?
@@ -64,6 +68,7 @@ struct LaunchOptions {
             case "--use": o.use = next()
             case "--merge": break
             case "--git-setup": o.gitSetup = next()
+            case "--page": o.page = next()
             case "--ignore-whitespace": o.ignoreWhitespace = true
             case "--find": o.find = next()
             case "--then": o.then = next()
@@ -90,7 +95,7 @@ struct LaunchOptions {
                 if parts.count == 2 { o.size = CGSize(width: parts[0], height: parts[1]) }
             default:
                 if a.hasPrefix("-psn_") {
-                } else if a.hasPrefix("-NS") || a.hasPrefix("-Apple") {
+                } else if a.hasPrefix("-") && !a.hasPrefix("--") && a.count > 1 {
                     i += 1
                 } else if a.hasPrefix("-") {
                 } else {
@@ -109,7 +114,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var comparisons: [ComparisonWindowController] = []
     private var merges: [MergeWindowController] = []
     private var welcome: WelcomeWindowController?
-    private var gitSetup: GitSetupWindowController?
     private var launched = false
     private var openedFromEvent = false
 
@@ -198,7 +202,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return
         }
         let wc = ComparisonWindowController(left: a, right: b, kind: isDirA.boolValue ? .folders : .files)
-        RecentComparisons.add(left: a, right: b, isFolder: isDirA.boolValue)
+        RecentComparisons.add(left: a, right: b, kind: isDirA.boolValue ? .folders : .files)
         present(wc, replacing: old)
     }
 
@@ -209,6 +213,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue,
               let workingCopy = WorkingCopy.locate(url) else { return false }
+        RecentComparisons.add(left: workingCopy.root, right: workingCopy.root, kind: .repository)
         if let open = comparisons.first(where: { $0.workingCopy?.root == workingCopy.root }) {
             open.showWindow(nil)
         } else {
@@ -266,15 +271,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         welcome = nil
     }
 
-    func showWelcome(prefill: URL?) {
+    func showWelcome(prefill: URL?, page: WelcomeWindowController.Page = .compare) {
         if let welcome {
+            if let prefill { welcome.comparePage.take([prefill]) }
+            welcome.show(prefill == nil ? page : .compare)
             welcome.showWindow(nil)
             return
         }
-        let w = WelcomeWindowController(prefill: prefill)
+        let w = WelcomeWindowController(prefill: prefill, page: page)
         w.onCompare = { [weak self] a, b in self?.openComparison(a, b) }
-        w.onGitSetup = { [weak self] in self?.showGitSetup(nil) }
-        w.onOpenRepository = { [weak self] in self?.openRepository(nil) }
+        w.onOpenRecent = { [weak self] item in
+            if item.kind == .repository { self?.openRepository(at: item.leftURL) } else { self?.openComparison(item.leftURL, item.rightURL) }
+        }
+        w.onOpenRepository = { [weak self] url in
+            if let url { self?.openRepository(at: url) } else { self?.openRepository(nil) }
+        }
         welcome = w
         w.showWindow(nil)
     }
@@ -306,6 +317,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     @objc func newComparison(_ sender: Any?) { showWelcome(prefill: nil) }
 
+    /// ⌘O: the start window's open panel, which takes one or two files or folders.
+    @objc func openFiles(_ sender: Any?) {
+        showWelcome(prefill: nil)
+        welcome?.chooseFiles()
+    }
+
     @objc func openRepository(_ sender: Any?) {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
@@ -314,21 +331,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         panel.message = "Choose a folder in a Git repository to see what has changed since the last commit."
         panel.prompt = "Open"
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        openRepository(at: url)
+    }
+
+    private func openRepository(at url: URL) {
         if !openChanges(url) {
             alert("“\(url.lastPathComponent)” is not in a Git repository", "Twofold shows the working copy changes of folders that Git tracks.")
         }
     }
 
-    @objc func showGitSetup(_ sender: Any?) {
-        if gitSetup == nil {
-            let w = GitSetupWindowController()
-            w.onClose = { [weak self] in self?.gitSetup = nil }
-            gitSetup = w
-        }
-        gitSetup?.showWindow(nil)
-        // Read again every time: the configuration may have been changed in a terminal meanwhile.
-        Task { await gitSetup?.refresh() }
-    }
+    /// Twofold › Git Integration…: the start window's Git page, which has the switches.
+    @objc func showGitSetup(_ sender: Any?) { showWelcome(prefill: nil, page: .git) }
     @objc func setLayoutBlocks(_ sender: Any?) { Preferences.shared.layout = .blocks }
     @objc func setLayoutFluid(_ sender: Any?) { Preferences.shared.layout = .fluid }
     @objc func setLayoutUnified(_ sender: Any?) { Preferences.shared.layout = .unified }
@@ -405,7 +418,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         ])
         _ = submenu("File", [
             item("New Comparison…", #selector(newComparison(_:)), "n"),
-            item("Open…", #selector(newComparison(_:)), "o"),
+            item("Open…", #selector(openFiles(_:)), "o"),
             item("Open Repository…", #selector(openRepository(_:)), "o", [.command, .shift]),
             .separator(),
             item("Close", #selector(NSWindow.performClose(_:)), "w"),

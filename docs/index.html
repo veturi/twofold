@@ -156,6 +156,46 @@
     <!-- Hero -->
     <section class="relative overflow-hidden">
       <div class="pointer-events-none absolute inset-x-0 -top-40 mx-auto h-[600px] max-w-5xl rounded-full bg-brand/25 blur-[120px] dark:bg-brand/30"></div>
+      <!-- The ribbon from the app's start window: curves fanning out like the connectors between two panes. -->
+      <svg class="pointer-events-none absolute inset-0 h-full w-full text-brand opacity-60 dark:opacity-80" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+      <linearGradient id="rb"><stop offset="0" stop-color="#5B8CF0" stop-opacity="0"/><stop offset=".45" stop-color="#5B8CF0" stop-opacity=".22"/><stop offset="1" stop-color="#5B8CF0" stop-opacity="0"/></linearGradient>
+      <linearGradient id="rv"><stop offset="0" stop-color="#A06BFF" stop-opacity="0"/><stop offset=".45" stop-color="#A06BFF" stop-opacity=".22"/><stop offset="1" stop-color="#A06BFF" stop-opacity="0"/></linearGradient>
+      <linearGradient id="rg"><stop offset="0" stop-color="#4CC38A" stop-opacity="0"/><stop offset=".45" stop-color="#4CC38A" stop-opacity=".22"/><stop offset="1" stop-color="#4CC38A" stop-opacity="0"/></linearGradient>
+      <linearGradient id="rr"><stop offset="0" stop-color="#F06A6A" stop-opacity="0"/><stop offset=".45" stop-color="#F06A6A" stop-opacity=".22"/><stop offset="1" stop-color="#F06A6A" stop-opacity="0"/></linearGradient>
+      </defs><g fill="none" stroke="currentColor">
+      <path d="M-40 171C598 171 842 86 1480 86" stroke-opacity="0.09" stroke-width="0.8"/>
+      <path d="M-40 179C598 179 842 123 1480 123" stroke-opacity="0.10" stroke-width="1.1"/>
+      <path d="M-40 187C598 187 842 161 1480 161" stroke-opacity="0.12" stroke-width="1.3"/>
+      <path d="M-40 195C598 195 842 199 1480 199" stroke-opacity="0.13" stroke-width="1.5"/>
+      <path d="M-40 203C598 203 842 237 1480 237" stroke-opacity="0.13" stroke-width="1.7"/>
+      <path d="M-40 211C598 211 842 274 1480 274" stroke-opacity="0.13" stroke-width="1.8"/>
+      <path d="M-40 219C598 219 842 312 1480 312" stroke-opacity="0.12" stroke-width="1.9"/>
+      <path d="M-40 226C598 226 842 350 1480 350" stroke-opacity="0.11" stroke-width="2.0"/>
+      <path d="M-40 234C598 234 842 388 1480 388" stroke-opacity="0.10" stroke-width="2.0"/>
+      <path d="M-40 242C598 242 842 426 1480 426" stroke-opacity="0.09" stroke-width="1.9"/>
+      <path d="M-40 250C598 250 842 464 1480 464" stroke-opacity="0.07" stroke-width="1.8"/>
+      <path d="M-40 258C598 258 842 501 1480 501" stroke-opacity="0.06" stroke-width="1.7"/>
+      <path d="M-40 266C598 266 842 539 1480 539" stroke-opacity="0.05" stroke-width="1.5"/>
+      <path d="M-40 274C598 274 842 577 1480 577" stroke-opacity="0.05" stroke-width="1.3"/>
+      <path d="M-40 282C598 282 842 615 1480 615" stroke-opacity="0.05" stroke-width="1.0"/>
+      <path d="M-40 290C598 290 842 652 1480 652" stroke-opacity="0.06" stroke-width="0.8"/>
+      <path d="M-40 298C598 298 842 690 1480 690" stroke-opacity="0.07" stroke-width="1.1"/>
+      <path d="M-40 306C598 306 842 728 1480 728" stroke-opacity="0.08" stroke-width="1.3"/>
+      <path d="M-40 314C598 314 842 766 1480 766" stroke-opacity="0.10" stroke-width="1.5"/>
+      <path d="M-40 321C598 321 842 804 1480 804" stroke-opacity="0.11" stroke-width="1.7"/>
+      <path d="M-40 329C598 329 842 842 1480 842" stroke-opacity="0.12" stroke-width="1.9"/>
+      <path d="M-40 337C598 337 842 879 1480 879" stroke-opacity="0.13" stroke-width="2.0"/>
+      <path d="M-40 345C598 345 842 917 1480 917" stroke-opacity="0.13" stroke-width="2.0"/>
+      <path d="M-40 353C598 353 842 955 1480 955" stroke-opacity="0.13" stroke-width="2.0"/>
+      <path d="M-40 361C598 361 842 993 1480 993" stroke-opacity="0.12" stroke-width="1.9"/>
+      <path d="M-40 369C598 369 842 1030 1480 1030" stroke-opacity="0.11" stroke-width="1.8"/>
+      </g>
+      <path d="M-40 203C598 203 842 237 1480 237L1480 312C842 312 598 219 -40 219Z" fill="url(#rb)"/>
+      <path d="M-40 258C598 258 842 501 1480 501L1480 539C842 539 598 266 -40 266Z" fill="url(#rv)"/>
+      <path d="M-40 290C598 290 842 652 1480 652L1480 728C842 728 598 306 -40 306Z" fill="url(#rg)"/>
+      <path d="M-40 337C598 337 842 879 1480 879L1480 917C842 917 598 345 -40 345Z" fill="url(#rr)"/>
+      </svg>
       <div class="relative mx-auto max-w-6xl px-6 pb-16 pt-20 text-center sm:pt-28">
         <img src="assets/icon.png" alt="Twofold app icon" class="mx-auto mb-8 h-28 w-28 drop-shadow-2xl">
         <p class="mb-5 inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-3 py-1 text-sm font-medium text-brand dark:text-brand-light">
@@ -505,7 +545,11 @@
             <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-add"></span>
             <div><h3 class="font-semibold">Live working copy changes: shipped</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Everything you have not committed yet, in one window that keeps up while you work.</p></div>
           </div>
-        </div>
+          <div class="flex gap-4 rounded-2xl border border-add/30 bg-add/5 p-6">
+            <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full bg-add"></span>
+            <div><h3 class="font-semibold">New start window: shipped</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Drop two files and go. Recents, Git setup and what’s new are one click away.</p></div>
+          </div>
+                  </div>
       </div>
     </section>
 

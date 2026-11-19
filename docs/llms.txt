@@ -28,6 +28,7 @@ Key facts:
 - Reloads automatically when either file changes on disk.
 - Reads UTF-8, UTF-16 and Latin-1 text with LF, CRLF or CR line endings. A difference in line endings alone is not shown as a change.
 - Light and dark themes.
+- Start window: drop two files or folders and the comparison opens at once, with no Compare button. A sidebar holds Recents (comparisons and repositories, with a filter), Git (recent repositories and the diff and merge tool switches) and What's New.
 - Command line tool `twofold a b`. Works as `git difftool`, including whole-tree comparisons with `git difftool --dir-diff`, and as `git mergetool` (`twofold --wait --base "$BASE" --output "$MERGED" "$LOCAL" "$REMOTE"`).
 - Performance: diffs 100,000 lines in under 60 ms, scrolls at 120 Hz, compares 10,000 files per side in about a second.
 
@@ -48,7 +49,7 @@ Key facts:
 
 - Download the zip from GitHub releases, unzip, and move Twofold.app to Applications. Release builds are not notarized yet, so macOS asks you to allow the first launch in System Settings → Privacy & Security.
 - Or build from source: `git clone https://github.com/veturi/twofold.git && cd twofold && make start` (needs the Xcode Command Line Tools).
-- Use from git, the easy way: in the app choose Twofold › Git Integration… and turn on "Diff tool" (git difftool) and "Merge tool" (git mergetool). Twofold writes the settings to the global Git configuration itself; no terminal commands or PATH setup are needed, and turning a switch off removes them.
+- Use from git, the easy way: in the app choose Twofold › Git Integration… (the Git page of the start window) and turn on "Diff tool" (git difftool) and "Merge tool" (git mergetool). Twofold writes the settings to the global Git configuration itself; no terminal commands or PATH setup are needed, and turning a switch off removes them.
 - Use as git difftool, by hand (needs the `twofold` command on the PATH):
 
 ```

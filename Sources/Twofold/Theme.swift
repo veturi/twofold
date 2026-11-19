@@ -49,6 +49,69 @@ enum Theme {
     static let accent = hex(0x8B46F0, 0x9D63FF)
     static let accentSoft = hex(0xEBE1FD, 0x3A2C57)
 
+    // Start window. Its pages sit on the ribbon artwork, so surfaces are translucent.
+    static func alpha(_ light: UInt32, _ la: CGFloat, _ dark: UInt32, _ da: CGFloat) -> NSColor {
+        dynamic(NSColor(hex: light, alpha: la), NSColor(hex: dark, alpha: da))
+    }
+    static let welcomeText = hex(0x1D1D21, 0xFFFFFF)
+    static let welcomeSecondary = alpha(0x1D1D21, 0.62, 0xFFFFFF, 0.64)
+    static let welcomeTertiary = alpha(0x1D1D21, 0.45, 0xFFFFFF, 0.42)
+    static let welcomeLink = hex(0x8B46F0, 0xC4A2FF)
+    static let welcomeSidebar = alpha(0xFFFFFF, 0.62, 0x0A0714, 0.66)
+    static let welcomeSidebarEdge = alpha(0x000000, 0.06, 0xFFFFFF, 0.08)
+    static let welcomeSelection = alpha(0x8B46F0, 0.12, 0xFFFFFF, 0.09)
+    static let welcomeHover = alpha(0x8B46F0, 0.06, 0xFFFFFF, 0.05)
+    static let welcomeCard = alpha(0xFFFFFF, 0.72, 0xFFFFFF, 0.055)
+    static let welcomeCardHover = alpha(0xFFFFFF, 0.92, 0xFFFFFF, 0.09)
+    static let welcomePanel = alpha(0xFFFFFF, 0.66, 0x0A0714, 0.36)
+    static let welcomeCardStroke = alpha(0x000000, 0.08, 0xFFFFFF, 0.11)
+    static let welcomeWellStroke = alpha(0x6B2FD6, 0.28, 0xFFFFFF, 0.22)
+    static let welcomeDropFill = alpha(0x8B46F0, 0.16, 0x9D63FF, 0.30)
+    static let welcomeDropStroke = hex(0x8B46F0, 0xC4A2FF)
+    static let welcomeErrorFill = alpha(0xFFF5F4, 0.92, 0x3A1A1E, 0.55)
+    static let welcomeChip = alpha(0x000000, 0.05, 0xFFFFFF, 0.07)
+    static let welcomeButtonTop = NSColor(hex: 0xA46BFF)
+    static let welcomeButtonBottom = NSColor(hex: 0x7B3DE6)
+    static let welcomeButtonText = NSColor.white
+    static let welcomeGlow = alpha(0x8B46F0, 0.45, 0x8B46F0, 0.7)
+    static let welcomeShadow = alpha(0x2A0E5C, 0.10, 0x000000, 0.35)
+    static let welcomeHeroStart = NSColor(hex: 0x7B3DF0)
+    static let welcomeHeroEnd = NSColor(hex: 0x3A1D7A)
+    static let welcomeOnHero = NSColor.white
+    static let welcomeOnHeroSecondary = NSColor(white: 1, alpha: 0.78)
+    static let welcomeOnHeroChip = NSColor(white: 1, alpha: 0.16)
+    static let welcomeStatusGood = hex(0x2E8A57, 0x8FE0B5)
+    static let welcomeStatusWarning = hex(0x9A6200, 0xFFD38A)
+
+    /// The colours of the start window's ribbon artwork for one appearance, as Core Graphics colours.
+    struct RibbonArt {
+        let base: [CGColor]
+        /// Soft glows: centre (unit coordinates, top left origin), radius (fraction of the width) and colour.
+        let glows: [(x: CGFloat, y: CGFloat, radius: CGFloat, color: CGColor)]
+        let strand: NSColor
+        let strandOpacity: ClosedRange<CGFloat>
+        /// The four coloured bands, as the change colours: modified, accent, added, removed.
+        let bands: [NSColor]
+        let bandOpacity: CGFloat
+    }
+
+    static func ribbonArt(dark: Bool) -> RibbonArt {
+        func c(_ v: UInt32, _ a: CGFloat = 1) -> CGColor { NSColor(hex: v, alpha: a).cgColor }
+        let bands = [NSColor(hex: 0x5B8CF0), NSColor(hex: 0xA06BFF), NSColor(hex: 0x4CC38A), NSColor(hex: 0xF06A6A)]
+        if dark {
+            return RibbonArt(
+                base: [c(0x0E0B19), c(0x1A1030), c(0x120D22)],
+                glows: [(0.62, 0.40, 0.55, c(0x7B3DF0, 0.55)), (0.95, 0.05, 0.45, c(0xC04BE8, 0.30)),
+                        (0.30, 1.00, 0.50, c(0x2F5BD8, 0.35)), (0.92, 0.95, 0.35, c(0x2BB38A, 0.16))],
+                strand: .white, strandOpacity: 0.035...0.10, bands: bands, bandOpacity: 0.30)
+        }
+        return RibbonArt(
+            base: [c(0xF7F4FD), c(0xEFE7FF), c(0xF4F0FB)],
+            glows: [(0.62, 0.40, 0.55, c(0xB58BFF, 0.45)), (0.95, 0.05, 0.45, c(0xF0A8F5, 0.35)),
+                    (0.30, 1.00, 0.50, c(0x9DB8FF, 0.40)), (0.92, 0.95, 0.35, c(0x9EE6C6, 0.25))],
+            strand: NSColor(hex: 0x6B2FD6), strandOpacity: 0.05...0.13, bands: bands, bandOpacity: 0.22)
+    }
+
     // Overview strip
     static let thumb = dynamic(NSColor(white: 0, alpha: 0.10), NSColor(white: 1, alpha: 0.13))
     static let thumbBorder = dynamic(NSColor(white: 0, alpha: 0.18), NSColor(white: 1, alpha: 0.22))

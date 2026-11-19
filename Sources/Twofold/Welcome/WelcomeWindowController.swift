@@ -1,260 +1,271 @@
 import AppKit
 
-/// Shown when the app starts without paths: two drop wells and a Compare button.
+/// The start window: a sidebar of pages over the ribbon artwork. It always opens on Compare, ready for
+/// files; Recents, Git and What's New are one click away.
 @MainActor
-final class WelcomeWindowController: NSWindowController {
-    private let wellA = DropWell(letter: "A")
-    private let wellB = DropWell(letter: "B")
-    private let compareButton = NSButton(title: "Compare", target: nil, action: nil)
-    private let hint = NSTextField(labelWithString: "")
-    private let recentList = NSStackView()
-    private let recentSection = NSStackView()
-    var onCompare: ((URL, URL) -> Void)?
-    var onGitSetup: (() -> Void)?
-    var onOpenRepository: (() -> Void)?
+final class WelcomeWindowController: NSWindowController, NSWindowDelegate {
+    enum Page: String, CaseIterable {
+        case compare, recents, git, whatsNew = "whats-new"
 
-    init(prefill: URL?) {
+        var title: String {
+            switch self {
+            case .compare: "Compare"
+            case .recents: "Recents"
+            case .git: "Git"
+            case .whatsNew: "What’s New"
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .compare: "rectangle.split.2x1"
+            case .recents: "clock"
+            case .git: "arrow.triangle.branch"
+            case .whatsNew: "sparkles"
+            }
+        }
+    }
+
+    static let size = NSSize(width: 960, height: 620)
+    static let sidebarWidth: CGFloat = 212
+
+    let comparePage = ComparePage()
+    let recentsPage = RecentsPage()
+    let gitPage = GitPage()
+    let whatsNewPage = WhatsNewPage()
+    private var items: [Page: SidebarItem] = [:]
+    private(set) var page: Page = .compare
+    /// Off in snapshot runs, which must not change what the user has seen.
+    private let remembersSeen: Bool
+
+    var onCompare: ((URL, URL) -> Void)?
+    var onOpenRepository: ((URL?) -> Void)?
+    var onOpenRecent: ((RecentComparison) -> Void)?
+
+    init(prefill: URL?, page: Page = .compare, remembersSeen: Bool = true) {
+        self.remembersSeen = remembersSeen
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 640, height: 426),
+            contentRect: NSRect(origin: .zero, size: Self.size),
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.backgroundColor = Theme.chrome
+        window.title = "Twofold"
         window.isMovableByWindowBackground = true
         window.isRestorable = false
         super.init(window: window)
+        window.delegate = self
 
-        let title = NSTextField(labelWithString: "Twofold")
-        title.font = .systemFont(ofSize: 26, weight: .bold)
-        title.textColor = Theme.text
-        let subtitle = NSTextField(labelWithString: "Drop two files or two folders to compare them.")
-        subtitle.font = .systemFont(ofSize: 13)
-        subtitle.textColor = Theme.secondaryText
-        hint.font = .systemFont(ofSize: 12)
-        hint.textColor = Theme.removed.marker
-
-        compareButton.target = self
-        compareButton.action = #selector(compare)
-        compareButton.keyEquivalent = "\r"
-        compareButton.controlSize = .large
-        compareButton.bezelColor = Theme.accent
-
-        let wells = NSStackView(views: [wellA, wellB])
-        wells.spacing = 16
-        wells.distribution = .fillEqually
-        let footer = NSStackView(views: [hint, compareButton])
-        footer.spacing = 12
-        let recentLabel = NSTextField(labelWithString: "Recent")
-        recentLabel.font = .systemFont(ofSize: 12, weight: .semibold)
-        recentLabel.textColor = Theme.secondaryText
-        let clear = NSButton(title: "Clear", target: self, action: #selector(clearRecents))
-        clear.isBordered = false
-        clear.font = .systemFont(ofSize: 12)
-        clear.contentTintColor = Theme.accent
-        let recentHeader = NSStackView(views: [recentLabel, NSView(), clear])
-        recentHeader.edgeInsets = NSEdgeInsets(top: 0, left: 10, bottom: 0, right: 10)
-        recentList.orientation = .vertical
-        recentList.spacing = 2
-        recentSection.orientation = .vertical
-        recentSection.spacing = 6
-        recentSection.addArrangedSubview(recentHeader)
-        recentSection.addArrangedSubview(recentList)
-        for v in [recentHeader, recentList] as [NSView] {
-            v.widthAnchor.constraint(equalTo: recentSection.widthAnchor).isActive = true
+        let root = WelcomeRootView()
+        root.onDrop = { [weak self] urls in self?.dropped(urls) }
+        let background = RibbonBackgroundView()
+        let sidebar = buildSidebar()
+        let container = NSView()
+        for v in [background, sidebar, container] {
+            v.translatesAutoresizingMaskIntoConstraints = false
+            root.addSubview(v)
         }
-
-        let stack = NSStackView(views: [title, subtitle, wells, footer, recentSection])
-        stack.orientation = .vertical
-        stack.alignment = .centerX
-        stack.spacing = 6
-        stack.setCustomSpacing(24, after: subtitle)
-        stack.setCustomSpacing(20, after: wells)
-        stack.setCustomSpacing(28, after: footer)
-        stack.translatesAutoresizingMaskIntoConstraints = false
-
-        let repository = NSButton(title: "Open a Git Repository…", target: self, action: #selector(openRepository))
-        let setup = NSButton(title: "Use Twofold from Git…", target: self, action: #selector(gitSetup))
-        for button in [repository, setup] {
-            button.isBordered = false
-            button.font = .systemFont(ofSize: 12)
-            button.contentTintColor = Theme.accent
-        }
-        let git = NSStackView(views: [repository, setup])
-        git.spacing = 28
-        git.translatesAutoresizingMaskIntoConstraints = false
-
-        let root = DropView()
-        root.addSubview(stack)
-        root.addSubview(git)
         NSLayoutConstraint.activate([
-            git.centerXAnchor.constraint(equalTo: root.centerXAnchor),
-            git.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -14),
-            stack.centerXAnchor.constraint(equalTo: root.centerXAnchor),
-            stack.centerYAnchor.constraint(equalTo: root.centerYAnchor, constant: -3),
-            wells.widthAnchor.constraint(equalToConstant: 560),
-            wells.heightAnchor.constraint(equalToConstant: 190),
-            recentSection.widthAnchor.constraint(equalTo: wells.widthAnchor),
+            background.topAnchor.constraint(equalTo: root.topAnchor),
+            background.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            background.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            background.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            sidebar.topAnchor.constraint(equalTo: root.topAnchor),
+            sidebar.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            sidebar.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            sidebar.widthAnchor.constraint(equalToConstant: Self.sidebarWidth),
+            container.topAnchor.constraint(equalTo: root.topAnchor),
+            container.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            container.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor),
+            container.trailingAnchor.constraint(equalTo: root.trailingAnchor),
         ])
-        root.onDrop = { [weak self] urls in self?.fill(urls) }
+        for p in [comparePage, recentsPage, gitPage, whatsNewPage] as [NSView] {
+            p.translatesAutoresizingMaskIntoConstraints = false
+            container.addSubview(p)
+            NSLayoutConstraint.activate([
+                p.topAnchor.constraint(equalTo: container.topAnchor),
+                p.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+                p.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+                p.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            ])
+        }
         window.contentView = root
 
-        for well in [wellA, wellB] {
-            well.onChange = { [weak self] in self?.update() }
-            well.onMultiple = { [weak self] urls in self?.fill(urls) }
-        }
-        wellA.url = prefill
-        update()
-        reloadRecents()
+        comparePage.onCompare = { [weak self] a, b in self?.onCompare?(a, b) }
+        comparePage.onOpenRepository = { [weak self] in self?.onOpenRepository?(nil) }
+        comparePage.onOpenRecent = { [weak self] item in self?.onOpenRecent?(item) }
+        comparePage.onShowRecents = { [weak self] in self?.show(.recents) }
+        recentsPage.onOpen = { [weak self] item in self?.onOpenRecent?(item) }
+        recentsPage.onChange = { [weak self] in self?.reloadRecents() }
+        gitPage.onOpenRepository = { [weak self] url in self?.onOpenRepository?(url) }
+
+        comparePage.wellA.url = prefill
+        show(page)
         window.center()
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
-    private func reloadRecents() {
-        let items = RecentComparisons.available
-        recentList.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        for item in items {
-            let row = RecentRow(item) { [weak self] r in self?.onCompare?(r.leftURL, r.rightURL) }
-            recentList.addArrangedSubview(row)
-            row.widthAnchor.constraint(equalTo: recentList.widthAnchor).isActive = true
-        }
-        recentSection.isHidden = items.isEmpty
-        let height: CGFloat = items.isEmpty ? 426 : 466 + CGFloat(items.count) * 46
-        guard let window else { return }
-        var frame = window.frame
-        let newFrame = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: 640, height: height))
-        frame.origin.y += frame.height - newFrame.height
-        frame.size = newFrame.size
-        window.setFrame(frame, display: true, animate: window.isVisible)
-    }
-
-    @objc private func gitSetup() { onGitSetup?() }
-    @objc private func openRepository() { onOpenRepository?() }
-
-    @objc private func clearRecents() {
-        RecentComparisons.clear()
-        reloadRecents()
-    }
-
-    private func fill(_ urls: [URL]) {
-        if urls.count >= 2 {
-            wellA.url = urls[0]
-            wellB.url = urls[1]
-        } else if let u = urls.first {
-            if wellA.url == nil { wellA.url = u } else { wellB.url = u }
-        }
-        update()
-    }
-
-    private func isDirectory(_ u: URL) -> Bool {
-        (try? u.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
-    }
-
-    private func update() {
-        var message = ""
-        var ok = false
-        if let a = wellA.url, let b = wellB.url {
-            if isDirectory(a) != isDirectory(b) {
-                message = "Choose two files or two folders, not one of each."
-            } else {
-                ok = true
+    private func buildSidebar() -> NSView {
+        let sidebar = SidebarView()
+        let nav = NSStackView()
+        nav.orientation = .vertical
+        nav.spacing = 2
+        for p in Page.allCases {
+            if p == .whatsNew {
+                let divider = NSStackView(views: [WelcomeRule()])
+                divider.edgeInsets = NSEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
+                nav.addArrangedSubview(divider)
+                divider.widthAnchor.constraint(equalTo: nav.widthAnchor).isActive = true
             }
+            let item = SidebarItem(p, badge: p == .whatsNew ? WhatsNew.version : nil)
+            item.action = { [weak self] in self?.show(p) }
+            items[p] = item
+            nav.addArrangedSubview(item)
+            item.widthAnchor.constraint(equalTo: nav.widthAnchor).isActive = true
         }
-        hint.stringValue = message
-        compareButton.isEnabled = ok
+        items[.whatsNew]?.showsBadge = WhatsNew.isUnseen
+
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let name = WelcomeText.label(version.map { "Twofold \($0)" } ?? "Twofold", size: 11, weight: .semibold, color: Theme.welcomeSecondary)
+        let tagline = WelcomeText.label("Free and open source", size: 11, color: Theme.welcomeTertiary)
+        let footer = NSStackView(views: [name, tagline])
+        footer.orientation = .vertical
+        footer.alignment = .leading
+        footer.spacing = 3
+
+        for v in [nav, footer] {
+            v.translatesAutoresizingMaskIntoConstraints = false
+            sidebar.addSubview(v)
+        }
+        NSLayoutConstraint.activate([
+            nav.topAnchor.constraint(equalTo: sidebar.topAnchor, constant: 52),
+            nav.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor, constant: 12),
+            nav.trailingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: -12),
+            footer.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor, constant: 22),
+            footer.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor, constant: -16),
+        ])
+        return sidebar
     }
 
-    @objc private func compare() {
-        guard let a = wellA.url, let b = wellB.url else { return }
-        onCompare?(a, b)
+    // MARK: Pages
+
+    func show(_ page: Page) {
+        self.page = page
+        for (p, item) in items { item.isSelected = p == page }
+        comparePage.isHidden = page != .compare
+        recentsPage.isHidden = page != .recents
+        gitPage.isHidden = page != .git
+        whatsNewPage.isHidden = page != .whatsNew
+        switch page {
+        case .compare: comparePage.reloadRecents()
+        case .recents: recentsPage.reload()
+        case .git:
+            gitPage.reloadRepositories()
+            // Read again every time: the configuration may have been changed in a terminal meanwhile.
+            Task { await gitPage.refresh() }
+        case .whatsNew:
+            items[.whatsNew]?.showsBadge = false
+            if remembersSeen { WhatsNew.markSeen() }
+        }
+    }
+
+    func reloadRecents() {
+        comparePage.reloadRecents()
+        recentsPage.reload()
+        gitPage.reloadRepositories()
+    }
+
+    /// Asks for files on the Compare page.
+    func chooseFiles() {
+        show(.compare)
+        comparePage.chooseFiles()
+    }
+
+    private func dropped(_ urls: [URL]) {
+        show(.compare)
+        comparePage.take(urls)
+    }
+
+    func windowDidBecomeKey(_ notification: Notification) {
+        // Something may have been compared, or a file removed, while another window was in front.
+        if page != .git { reloadRecents() }
     }
 }
 
-/// A rounded drop target that shows the chosen file or folder. Click to pick one.
+/// The window's content: takes files dropped anywhere outside the wells.
 @MainActor
-final class DropWell: NSView {
-    let letter: String
-    var url: URL? { didSet { needsDisplay = true; onChange?() } }
-    var onChange: (() -> Void)?
-    var onMultiple: (([URL]) -> Void)?
-    private var highlighted = false { didSet { needsDisplay = true } }
+private final class WelcomeRootView: NSView {
+    var onDrop: (([URL]) -> Void)?
 
-    init(letter: String) {
-        self.letter = letter
-        super.init(frame: .zero)
+    override init(frame: NSRect) {
+        super.init(frame: frame)
         registerForDraggedTypes([.fileURL])
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
-    override func draw(_ dirtyRect: NSRect) {
-        let r = bounds.insetBy(dx: 1.5, dy: 1.5)
-        let path = NSBezierPath(roundedRect: r, xRadius: 14, yRadius: 14)
-        (highlighted ? Theme.accentSoft : Theme.paneBackground).setFill()
-        path.fill()
-        path.lineWidth = 1.5
-        if url == nil { path.setLineDash([6, 4], count: 2, phase: 0) }
-        (highlighted ? Theme.accent : Theme.separator).setStroke()
-        path.stroke()
-
-        Badge.draw(letter, in: CGRect(x: r.minX + 12, y: r.maxY - 28, width: 20, height: 18), filled: true)
-
-        let icon: NSImage
-        let name: String
-        let detail: String
-        if let url {
-            icon = NSWorkspace.shared.icon(forFile: url.path)
-            name = url.lastPathComponent
-            detail = (url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath
-        } else {
-            icon = NSImage(systemSymbolName: "plus.square.dashed", accessibilityDescription: nil)!
-                .withSymbolConfiguration(.init(pointSize: 34, weight: .ultraLight).applying(.init(paletteColors: [Theme.foldText])))!
-            name = "Drop a file or folder"
-            detail = "or click to choose"
-        }
-        let iconSize: CGFloat = 56
-        icon.draw(in: CGRect(x: r.midX - iconSize / 2, y: r.midY - 4, width: iconSize, height: iconSize))
-        let para = NSMutableParagraphStyle()
-        para.alignment = .center
-        para.lineBreakMode = .byTruncatingMiddle
-        NSAttributedString(string: name, attributes: [
-            .font: NSFont.systemFont(ofSize: 13, weight: .semibold), .foregroundColor: Theme.text, .paragraphStyle: para,
-        ]).draw(in: CGRect(x: r.minX + 12, y: r.midY - 30, width: r.width - 24, height: 18))
-        NSAttributedString(string: detail, attributes: [
-            .font: NSFont.systemFont(ofSize: 11), .foregroundColor: Theme.secondaryText, .paragraphStyle: para,
-        ]).draw(in: CGRect(x: r.minX + 12, y: r.midY - 48, width: r.width - 24, height: 16))
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = true
-        panel.prompt = "Choose"
-        guard let window else { return }
-        panel.beginSheetModal(for: window) { [weak self] response in
-            guard response == .OK else { return }
-            MainActor.assumeIsolated {
-                if panel.urls.count >= 2 { self?.onMultiple?(panel.urls) } else { self?.url = panel.urls.first }
-            }
-        }
-    }
-
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        let ok = !DropView.urls(sender).isEmpty
-        highlighted = ok
-        return ok ? .copy : []
-    }
-
-    override func draggingExited(_ sender: NSDraggingInfo?) {
-        highlighted = false
+        DropView.urls(sender).isEmpty ? [] : .copy
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        highlighted = false
         let urls = DropView.urls(sender)
-        if urls.count >= 2 { onMultiple?(urls) } else { url = urls.first }
-        return !urls.isEmpty
+        guard !urls.isEmpty else { return false }
+        onDrop?(urls)
+        return true
     }
+}
+
+/// The translucent sidebar, with a hairline on its right edge.
+@MainActor
+private final class SidebarView: NSView {
+    override func draw(_ dirtyRect: NSRect) {
+        Theme.welcomeSidebar.setFill()
+        bounds.fill()
+        Theme.welcomeSidebarEdge.setFill()
+        NSRect(x: bounds.maxX - 1, y: 0, width: 1, height: bounds.height).fill()
+    }
+}
+
+/// One page in the sidebar: its symbol, its name, and for What's New a version badge until it is seen.
+@MainActor
+private final class SidebarItem: WelcomeControl {
+    private let icon: NSImageView
+    private let label: NSTextField
+    private let badge: Chip?
+
+    var isSelected = false {
+        didSet {
+            fill = isSelected ? Theme.welcomeSelection : nil
+            hoverFill = isSelected ? Theme.welcomeSelection : Theme.welcomeHover
+            icon.contentTintColor = isSelected ? Theme.welcomeLink : Theme.welcomeSecondary
+            label.font = .systemFont(ofSize: 13, weight: isSelected ? .semibold : .medium)
+            setAccessibilityValue(isSelected ? "selected" : nil)
+        }
+    }
+
+    var showsBadge = false { didSet { badge?.isHidden = !showsBadge } }
+
+    init(_ page: WelcomeWindowController.Page, badge text: String?) {
+        icon = WelcomeText.symbol(page.symbol, size: 13.5, color: Theme.welcomeSecondary)
+        label = WelcomeText.label(page.title, size: 13, weight: .medium)
+        badge = text.map { Chip($0, color: Theme.welcomeButtonText, background: Theme.accent) }
+        super.init(frame: .zero)
+        hoverFill = Theme.welcomeHover
+        radius = 8
+        icon.widthAnchor.constraint(equalToConstant: 18).isActive = true
+        var views: [NSView] = [icon, label, NSView()]
+        if let badge {
+            badge.isHidden = true
+            views.append(badge)
+        }
+        let row = NSStackView(views: views)
+        row.spacing = 9
+        embed(row, insets: NSEdgeInsets(top: 0, left: 10, bottom: 0, right: 8))
+        heightAnchor.constraint(equalToConstant: 32).isActive = true
+        setAccessibilityLabel(page.title)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
 }
